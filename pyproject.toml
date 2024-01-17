@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "untitled" # ! 👈 Change this to your project name
+version = "0.0.1" # ! 👈 Change this to your project version
+description = "No description" # ! 👈 Change this to your project description
+license = "MIT" # ! 👈 Change this to your project license
+authors = [
+    "Your Name <you@example.com>",
+] # ! 👈 Change this to your name and email
+maintainers = [
+    "Your Name <you@example.com>", # ! 👈 Change this to your name and email
+]
+readme = "README.md"
+
+packages = [
+    { include = "*", from = "src" }, # ! 👈 Change this to your package name
+]
+
+# 👇Uncomment to add HomePage
+# homepage = "your-project-url" # * 👈 Change this to your project URL
+
+# 👇Uncomment to add Repository
+# repository = "your-repository-url" # * 👈 Change this to your repository URL
+
+# 👇Uncomment to add Documentation
+# documentation = "your-documentation-url" # * 👈 Change this to your documentation URL
+
+# 👇Uncomment to add classifiers
+# classifiers = [
+#     "Topic :: Software Development :: Libraries :: Python Modules",
+#     "Programming Language :: Python :: 3",
+# ]
+
+# 👇Uncomment to exclude packages
+# exclude = ["untitled"]
+
+
+[tool.poetry.dependencies]
+python = "^3.11" # ! 👈 Change this to your Python version
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.12.1"
+ruff = "^0.1.13"
+mypy = "^1.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
