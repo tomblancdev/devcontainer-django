@@ -35,13 +35,23 @@ packages = [
 
 
 [tool.poetry.dependencies]
-python = "^3.11" # ! 👈 Change this to your Python version
+python = "^3.11"                # ! 👈 Change this to your Python version
+django = "^5.0.1"
+djangorestframework = "^3.14.0"
 
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.12.1"
 ruff = "^0.1.13"
 mypy = "^1.8.0"
+django-stubs = "^4.2.7"
+djangorestframework-stubs = "^3.14.5"
+
+[tool.mypy]
+plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+
+[tool.django-stubs]
+django_settings_module = "settings.settings"
 
 [build-system]
 requires = ["poetry-core"]
