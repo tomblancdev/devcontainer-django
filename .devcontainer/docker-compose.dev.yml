@@ -9,4 +9,22 @@ services:
       - ..:/workspace:cached # mount the current directory as workspace to the container
     environment: # set environment variables
       POETRY_VIRTUALENVS_IN_PROJECT: True
+      ENVIRONMENT: "development"
+      # ___ Base settings ___
+      DEBUG: True
+      # SECRET_KEY: ""
+      # ___ Database ___
+      # DB_ENGINE: django.db.backends.postgresql
+      # DB_NAME: postgres
+      # DB_USER: postgres
+      # DB_PASSWORD: postgres
+      # DB_HOST: db
+      # DB_PORT: 5432
+      # ___ Static files ___
+      STATIC_URL: /static/
+      STATIC_ROOT: /staticfiles/
+      # ___ Globalization ___
+      LANGUAGE_CODE: en-us
+      TIME_ZONE: UTC
+      
     command: /bin/sh -c "while sleep 1000; do :; done" # * keep the container running
