@@ -52,6 +52,10 @@ pytest = "^7.4.4"
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 enable_incomplete_features = true
 
+[tool.pyright]
+venvPath = ".venv"
+typeCheckingMode = "off"
+
 
 [tool.django-stubs]
 django_settings_module = "settings.settings"

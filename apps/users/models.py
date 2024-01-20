@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from typing import Any, Generic, Self, TypedDict, TypeVar, Unpack
 
 from django.conf import settings
@@ -12,6 +13,7 @@ from django.contrib.auth.models import (
 )
 from django.core.mail import send_mail
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_stubs_ext.db.models import TypedModelMeta
 
@@ -19,7 +21,7 @@ T = TypeVar("T", bound="User")
 
 
 class SendUserEmailOptions(TypedDict, total=False):
-    """Options for sending an email."""
+    """Type Options for sending an email."""
 
     subject: str
     message: str
@@ -134,6 +136,8 @@ class User(AbstractBaseUser, PermissionsMixin):
         auto_now_add=True,
     )
 
+    token_email_validation: UserTokenEmailValidation[Self] | None
+
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"
     REQUIRED_FIELDS = ["username", "first_name", "last_name"]
@@ -152,6 +156,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name = _("user")
         verbose_name_plural = _("users")
 
+    @property
+    def email_verified(self: Self) -> bool:
+        """Return whether the user's email is verified."""
+        if self.token_email_validation is None:
+            return False
+
+        return self.token_email_validation.is_validated
+
     def get_short_name(self: Self) -> str:
         """Return the short name for the user."""
         return f"#{self.id}_{self.username}"
@@ -169,3 +181,81 @@ class User(AbstractBaseUser, PermissionsMixin):
             recipient_list=[self.email],
             **kwargs,
         )
+
+
+class UserTokenEmailValidation(models.Model, Generic[T]):
+    """User token email validation model."""
+
+    user: models.OneToOneField[T, T] = models.OneToOneField(
+        verbose_name=_("user"),
+        to=settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="token_email_validation",
+    )
+
+    token = models.CharField(
+        verbose_name=_("token"),
+        max_length=255,
+        default=secrets.token_urlsafe,
+        unique=True,
+    )
+
+    created_at = models.DateTimeField(
+        verbose_name=_("created at"),
+        auto_now_add=True,
+    )
+
+    validated_at = models.DateTimeField(
+        verbose_name=_("validated at"),
+        null=True,
+        blank=True,
+    )
+
+    objects: models.Manager[Self]
+
+    def __str__(self) -> str:
+        return f"#{self.user.id}_{self.user.username}_token_email_validation"
+
+    class Meta(TypedModelMeta):
+        """Meta options."""
+
+        if "users" not in settings.INSTALLED_APPS:
+            abstract = True
+
+        verbose_name = _("user token email validation")
+        verbose_name_plural = _("user token email validations")
+
+    @property
+    def is_validated(self) -> bool:
+        """Return whether the token is validated."""
+        return self.validated_at is not None
+
+    @classmethod
+    def validate_token(cls, token: str) -> bool:
+        """Validate the token."""
+        # check if token exists
+        token_email_validation = cls.objects.get(token=token)
+
+        # if token does not exist, raise error
+        if token_email_validation is None:
+            raise ValueError(_("Token does not exist."))
+
+        # if token is already validated, raise error
+        if token_email_validation.is_validated:
+            raise ValueError(_("Token is already validated."))
+
+        # validate token
+        token_email_validation.validated_at = timezone.now()
+        token_email_validation.save()
+
+        return token_email_validation.user
+
+    @classmethod
+    def unregister_user_with_token(cls, token: str) -> None:
+        """Unregister the user if the token is not validated."""
+
+        email_token = cls.objects.get(token=token)
+        if email_token.validated_at is not None:
+            raise ValueError(_("Token is already validated."))
+
+        email_token.user.delete()
