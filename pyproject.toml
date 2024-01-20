@@ -12,7 +12,7 @@ maintainers = [
 readme = "README.md"
 
 packages = [
-    { include = "*", from = "src" }, # ! 👈 Change this to your package name
+    { include = "*", from = "apps" }, # ! 👈 Change this to your package name
 ]
 
 # 👇Uncomment to add HomePage
@@ -50,6 +50,8 @@ pytest = "^7.4.4"
 
 [tool.mypy]
 plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
+enable_incomplete_features = true
+
 
 [tool.django-stubs]
 django_settings_module = "settings.settings"

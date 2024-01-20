@@ -13,6 +13,12 @@ services:
       # ___ Base settings ___
       DEBUG: True
       # SECRET_KEY: ""
+      # ___ Admin ___
+      DJANGO_SUPERUSER_USERNAME: admin
+      DJANGO_SUPERUSER_PASSWORD: password
+      DJANGO_SUPERUSER_EMAIL: admin@example.com
+      DJANGO_SUPERUSER_FIRST_NAME: Admin
+      DJANGO_SUPERUSER_LAST_NAME: ADMIN
       # ___ Database ___
       # DB_ENGINE: django.db.backends.postgresql
       # DB_NAME: postgres
@@ -26,5 +32,5 @@ services:
       # ___ Globalization ___
       LANGUAGE_CODE: en-us
       TIME_ZONE: UTC
-      
+
     command: /bin/sh -c "while sleep 1000; do :; done" # * keep the container running
