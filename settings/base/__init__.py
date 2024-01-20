@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 
+from .email import *  # noqa: F403
 from .globalization import *  # noqa: F403
 
 DEBUG = os.environ.get("DEBUG") == "True"
