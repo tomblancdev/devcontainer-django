@@ -83,13 +83,29 @@ class UserAdmin(BaseUserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
 
-    list_display = ("email", "username", "first_name", "last_name", "is_admin")
+    list_display = (
+        "email",
+        "username",
+        "first_name",
+        "last_name",
+        "is_admin",
+        "email_verified",
+    )
     list_filter = ("is_admin",)
 
     fieldsets = (
         (
             None,
-            {"fields": ("email", "username", "first_name", "last_name", "password")},
+            {
+                "fields": (
+                    "email",
+                    "username",
+                    "first_name",
+                    "last_name",
+                    "password",
+                    "email_verified",
+                )
+            },
         ),
         (
             _("Permissions"),
@@ -127,7 +143,7 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ("email", "username", "first_name", "last_name")
     ordering = ("email", "username", "first_name", "last_name")
     filter_horizontal = ()
-    readonly_fields = ("last_login", "date_joined")
+    readonly_fields = ("last_login", "date_joined", "email_verified")
 
 
 admin.site.register(User, UserAdmin)

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Iterable
 from typing import Any, ClassVar, Generic, Self, TypedDict, TypeVar, Unpack
 
 from django.conf import settings
+from django.contrib.auth import password_validation
 from django.contrib.auth.models import (
     AbstractBaseUser,
     BaseUserManager,
@@ -57,13 +59,18 @@ class UserManager(BaseUserManager[T]):
         if not last_name:
             raise ValueError(_("Users must have a last name."))
 
+        if not password:
+            raise ValueError(_("Users must have a password."))
+
         user = self.model(
             email=self.normalize_email(email),
             username=username,
             first_name=first_name,
             last_name=last_name,
         )
-
+        # validate password
+        if password is not None:
+            password_validation.validate_password(password)
         user.set_password(password)
         user.save(using=self._db)
 
@@ -181,6 +188,57 @@ class User(AbstractBaseUser, PermissionsMixin):
         )
 
 
+class TokenError(Exception):
+    """Base token error."""
+
+
+class UserTokenEmailValidationManager(models.Manager["UserTokenEmailValidation"]):
+    """User token email validation manager."""
+
+    def create_token(self, user: User) -> UserTokenEmailValidation:
+        """Create a token."""
+        # check if token for this user exists and is validated
+        token_email_validation = self.filter(
+            user=user,
+        ).first()
+        if token_email_validation:
+            if token_email_validation.is_validated:
+                raise TokenError(_("Token is already validated."))
+            return token_email_validation
+
+        # create token
+        token_email_validation = self.create(user=user)
+        return token_email_validation
+
+    def validate_token(self, token: str) -> User:
+        """Validate the token."""
+        # check if token exists
+        token_email_validation = self.filter(token=token).first()
+        if not token_email_validation:
+            raise TokenError(_("Token does not exist."))
+
+        # if token is already validated, raise error
+        if token_email_validation.is_validated:
+            raise TokenError(_("Token is already validated."))
+
+        # validate token
+        token_email_validation.validated_at = timezone.now()
+        token_email_validation.save()
+
+        return token_email_validation.user
+
+    def unregister_user_with_token(self, token: str) -> None:
+        """Unregister the user if the token is not validated."""
+        token_email_validation = self.filter(token=token).first()
+        if token_email_validation is None:
+            raise ValueError(_("Token does not exist."))
+
+        if token_email_validation.is_validated:
+            raise ValueError(_("Token is already validated."))
+
+        token_email_validation.user.delete()
+
+
 class UserTokenEmailValidation(models.Model, Generic[T]):
     """User token email validation model."""
 
@@ -209,7 +267,9 @@ class UserTokenEmailValidation(models.Model, Generic[T]):
         blank=True,
     )
 
-    objects: models.Manager[Self]
+    objects: ClassVar[
+        UserTokenEmailValidationManager
+    ] = UserTokenEmailValidationManager()
 
     def __str__(self) -> str:
         return f"#{self.user.id}_{self.user.username}_token_email_validation"
@@ -223,37 +283,36 @@ class UserTokenEmailValidation(models.Model, Generic[T]):
         verbose_name = _("user token email validation")
         verbose_name_plural = _("user token email validations")
 
+    def save(
+        self,
+        force_insert: bool = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        """Save the model."""
+        # get previous instance
+        previous_instance = UserTokenEmailValidation.objects.filter(
+            pk=self.pk,
+        ).first()
+
+        if previous_instance and previous_instance.is_validated:
+            raise TokenError(_("Cannot save validated token."))
+        # if token already exists but is not validated, renew token
+        if (
+            UserTokenEmailValidation.objects.filter(
+                token=self.token,
+            )
+            .exclude(
+                validated_at__isnull=False,
+            )
+            .exists()
+        ):
+            self.token = secrets.token_urlsafe()
+        return super().save(force_insert, force_update, using, update_fields)
+
     @property
     def is_validated(self) -> bool:
         """Return whether the token is validated."""
+        print(self.validated_at)
         return self.validated_at is not None
-
-    @classmethod
-    def validate_token(cls, token: str) -> bool:
-        """Validate the token."""
-        # check if token exists
-        token_email_validation = cls.objects.get(token=token)
-
-        # if token does not exist, raise error
-        if token_email_validation is None:
-            raise ValueError(_("Token does not exist."))
-
-        # if token is already validated, raise error
-        if token_email_validation.is_validated:
-            raise ValueError(_("Token is already validated."))
-
-        # validate token
-        token_email_validation.validated_at = timezone.now()
-        token_email_validation.save()
-
-        return token_email_validation.user
-
-    @classmethod
-    def unregister_user_with_token(cls, token: str) -> None:
-        """Unregister the user if the token is not validated."""
-
-        email_token = cls.objects.get(token=token)
-        if email_token.validated_at is not None:
-            raise ValueError(_("Token is already validated."))
-
-        email_token.user.delete()

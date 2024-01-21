@@ -23,6 +23,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sessions",
     "django.contrib.staticfiles",
+    "rest_framework",  # 👈Include the rest_framework app
     "users",  # 👈Include the users app
 ]
 
