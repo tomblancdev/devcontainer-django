@@ -60,6 +60,7 @@
 					"-p",
 					"*test*.py"
 				],
+				"mypy-type-checker.importStrategy": "fromEnvironment",
 				// ### Better Comments ###
 				"better-comments.tags": [
 					// ! Important

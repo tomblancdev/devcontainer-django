@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import Any, Generic, Self, TypedDict, TypeVar, Unpack
+from typing import Any, ClassVar, Generic, Self, TypedDict, TypeVar, Unpack
 
 from django.conf import settings
 from django.contrib.auth.models import (
@@ -33,10 +33,8 @@ class SendUserEmailOptions(TypedDict, total=False):
     html_message: str | None
 
 
-class UserManager(BaseUserManager, Generic[T]):
+class UserManager(BaseUserManager[T]):
     """User manager."""
-
-    model: type[T]
 
     def create_user(
         self: Self,
@@ -142,7 +140,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     EMAIL_FIELD = "email"
     REQUIRED_FIELDS = ["username", "first_name", "last_name"]
 
-    objects = UserManager[Self]()
+    objects: ClassVar[UserManager[User]] = UserManager()
 
     def __str__(self: Self) -> str:
         return f"#{self.id}_{self.username}"
