@@ -39,10 +39,10 @@ class UserManager(BaseUserManager["User"]):
 
     def create_user(
         self: Self,
-        email: str,
-        username: str,
-        first_name: str,
-        last_name: str,
+        email: str | None = None,
+        username: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
         password: str | None = None,
     ) -> User:
         """Create and save a user."""
@@ -60,6 +60,10 @@ class UserManager(BaseUserManager["User"]):
 
         if not password:
             raise ValueError(_("Users must have a password."))
+
+        # check if user already exists
+        if self.filter(email=email).exists():
+            raise ValueError(_("User with this email already exists."))
 
         user = self.model(
             email=self.normalize_email(email),
@@ -141,7 +145,9 @@ class User(AbstractBaseUser, PermissionsMixin):
         auto_now_add=True,
     )
 
-    token_email_validation: UserTokenEmailValidation | None
+    token_email_validation: UserTokenEmailValidation
+    reset_password_token_set: models.Manager[ResetPasswordToken]
+    auth_token_set: models.Manager[AuthToken]
 
     auth_token_set: models.Manager[AuthToken]
 
@@ -166,7 +172,7 @@ class User(AbstractBaseUser, PermissionsMixin):
         """Return whether the user's email is verified."""
         if self.is_superuser:
             return True
-        if self.token_email_validation is None:
+        if not hasattr(self, "token_email_validation"):
             return False
 
         return self.token_email_validation.is_validated

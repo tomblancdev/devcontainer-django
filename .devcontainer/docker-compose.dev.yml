@@ -12,6 +12,7 @@ services:
       ENVIRONMENT: "development"
       # ___ Base settings ___
       DEBUG: True
+      DJANGO_SETTINGS_MODULE: settings
       # SECRET_KEY: ""
       # ___ Admin ___
       DJANGO_SUPERUSER_USERNAME: admin

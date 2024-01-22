@@ -26,14 +26,15 @@ repos:
         args: [ --fix ]
     -   id: ruff-format
 
--   repo: local
-    hooks:
-    -   id: pytest-check
-        name: pytest-check
-        entry: pytest
-        language: system
-        pass_filenames: false
-        always_run: true
+# 👇Uncomment to reactivate it
+# -   repo: local
+#     hooks:
+#     -   id: pytest-check
+#         name: pytest-check
+#         entry: poetry run pytest
+#         language: system
+#         pass_filenames: false
+#         always_run: true
 -   repo: local
     hooks:
     -   id: django-test
