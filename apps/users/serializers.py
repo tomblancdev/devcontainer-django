@@ -2,11 +2,11 @@
 
 from typing import Any
 
-from django.contrib.auth import password_validation
+from django.contrib.auth import authenticate, password_validation
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from .models import User
+from .models import AuthToken, User
 
 
 class RegisterSerializer(serializers.ModelSerializer[User]):
@@ -17,7 +17,7 @@ class RegisterSerializer(serializers.ModelSerializer[User]):
         write_only=True,
     )
 
-    next = serializers.URLField(required=False, write_only=True)
+    next = serializers.URLField(write_only=True)
 
     class Meta:
         """Meta class for user registration serializer."""
@@ -66,23 +66,137 @@ class RegisterSerializer(serializers.ModelSerializer[User]):
         return user
 
 
-class LoginSerializer(serializers.Serializer):
-    """Serializer for user login."""
+class UserSerializer(serializers.ModelSerializer[User]):
+    """Serializer for user."""
 
-    email = serializers.EmailField()
+    class Meta:
+        """Meta class for user serializer."""
+
+        model = User
+        fields = (
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "username",
+            "is_active",
+            "email_verified",
+        )
+        extra_kwargs = {
+            "id": {"read_only": True},
+            "email": {"read_only": True},
+            "is_active": {"read_only": True},
+            "email_verified": {"read_only": True},
+        }
+
+
+class AuthTokenSerializer(serializers.ModelSerializer[AuthToken]):
+    """Serializer for auth token."""
+
+    email = serializers.EmailField(write_only=True)
     password = serializers.CharField(
         style={"input_type": "password"},
         write_only=True,
     )
 
+    user = UserSerializer(read_only=True)
+
+    class Meta:
+        """Meta class for auth token serializer."""
+
+        model = AuthToken
+        fields = ("key", "user", "email", "password", "expires_at")
+        extra_kwargs = {
+            "key": {"read_only": True},
+            "user": {"read_only": True},
+        }
+
     def validate(self, data: Any) -> Any:
-        """Validate that user exists and password is correct."""
+        """Validate that user exists and passwords match."""
         data = super().validate(data)
-        try:
-            user = User.objects.get(email=data["email"])
-        except User.DoesNotExist:
-            raise serializers.ValidationError(_("User does not exist."))
-        if not user.check_password(data["password"]):
-            raise serializers.ValidationError(_("Password is incorrect."))
+        user = authenticate(
+            email=data["email"],
+            password=data["password"],
+        )
+        if not user or not user.is_active:
+            raise serializers.ValidationError(_("Invalid credentials."))
+        if isinstance(user, User) and not user.email_verified:
+            raise serializers.ValidationError(_("Email is not verified."))
         data["user"] = user
         return data
+
+    def create(self, validated_data):
+        """Create auth token."""
+        user = validated_data["user"]
+        token = AuthToken.objects.create(
+            user=user,
+            expires_at=validated_data.get("expires_at", None),
+        )
+        return token
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    password = serializers.CharField(
+        style={"input_type": "password"},
+        write_only=True,
+    )
+    new_password = serializers.CharField(
+        style={"input_type": "password"},
+        write_only=True,
+    )
+    new_password_validation = serializers.CharField(
+        style={"input_type": "password"},
+        write_only=True,
+    )
+
+    def validate(self, data: Any) -> Any:
+        """Validate that passwords match."""
+        data = super().validate(data)
+        if data["new_password"] != data["new_password_validation"]:
+            raise serializers.ValidationError(_("Passwords must match."))
+        # check that password is strong enough
+        try:
+            password_validation.validate_password(data["new_password"])
+        except serializers.ValidationError as error:
+            raise serializers.ValidationError({"new_password": f"{error}"})
+        return data
+
+
+class ResetPasswordRequestSerializer(serializers.Serializer):
+    """Serializer for reset password token."""
+
+    email = serializers.EmailField(write_only=True)
+    next = serializers.URLField(required=False, write_only=True)
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    """Serializer for reset password token."""
+
+    token = serializers.CharField(write_only=True)
+
+    password = serializers.CharField(
+        style={"input_type": "password"},
+        write_only=True,
+    )
+    password_validation = serializers.CharField(
+        style={"input_type": "password"},
+        write_only=True,
+    )
+
+    def validate(self, data: Any) -> Any:
+        """Validate that passwords match."""
+        data = super().validate(data)
+        if data["password"] != data["password_validation"]:
+            raise serializers.ValidationError(_("Passwords must match."))
+        # check that password is strong enough
+        try:
+            password_validation.validate_password(data["password"])
+        except serializers.ValidationError as error:
+            raise serializers.ValidationError({"password": f"{error}"})
+        return data
+
+
+class ActivateAccountSerializer(serializers.Serializer):
+    """Serializer for activate account."""
+
+    token = serializers.CharField(write_only=True)
