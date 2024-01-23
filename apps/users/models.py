@@ -63,7 +63,7 @@ class UserManager(BaseUserManager["User"]):
 
         # check if user already exists
         if self.filter(email=email).exists():
-            raise ValueError(_("User with this email already exists."))
+            raise ValueError(_("User already exists."))
 
         user = self.model(
             email=self.normalize_email(email),
@@ -147,8 +147,6 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     token_email_validation: UserTokenEmailValidation
     reset_password_token_set: models.Manager[ResetPasswordToken]
-    auth_token_set: models.Manager[AuthToken]
-
     auth_token_set: models.Manager[AuthToken]
 
     USERNAME_FIELD = "email"

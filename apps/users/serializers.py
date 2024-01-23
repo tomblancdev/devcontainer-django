@@ -18,6 +18,14 @@ class RegisterSerializer(serializers.ModelSerializer[User]):
     )
 
     next = serializers.URLField(write_only=True)
+    email = serializers.EmailField(write_only=True)
+    password = serializers.CharField(
+        style={"input_type": "password"},
+        write_only=True,
+    )
+    first_name = serializers.CharField(write_only=True)
+    last_name = serializers.CharField(write_only=True)
+    username = serializers.CharField(write_only=True)
 
     class Meta:
         """Meta class for user registration serializer."""

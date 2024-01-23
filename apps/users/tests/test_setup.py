@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from users.models import User, UserTokenEmailValidation
+from users.models import AuthToken, User, UserTokenEmailValidation
 
 
 class FakeUserInfos:
@@ -43,9 +43,18 @@ class TestUserSetup(TestCase):
     def setUp(self):
         """Setup for the tests."""
         self.client = APIClient()
+        self.user_infos = FakeUserInfos()
         self.verified_user, self.verified_user_token = self.generate_user(
-            FakeUserInfos(),
+            self.user_infos,
             email_verified=True,
+        )
+        # create authToken for the verified user
+        self.verified_user_auth_token = AuthToken.objects.create(
+            user=self.verified_user
+        )
+        # authentificate the client
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Token {self.verified_user_auth_token.key}"
         )
 
     def generate_user(
