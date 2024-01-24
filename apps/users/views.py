@@ -12,13 +12,14 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 
 from .models import (
     AuthToken,
-    ResetPasswordToken,
     TokenError,
     User,
-    UserTokenEmailValidation,
+    UserEmailValidationToken,
+    UserResetPasswordToken,
 )
 from .serializers import (
     ActivateAccountSerializer,
@@ -27,6 +28,7 @@ from .serializers import (
     RegisterSerializer,
     ResetPasswordRequestSerializer,
     ResetPasswordSerializer,
+    UserSerializer,
 )
 
 
@@ -36,7 +38,7 @@ def send_mail_activation(
 ) -> None:
     """Send email activation."""
     # create token
-    token = UserTokenEmailValidation.objects.create_token(user)
+    token = UserEmailValidationToken.objects.create_token_for_user(user)
     # create activation link
     activation_link = f"{next_url}?token={token.token}"
     # send email
@@ -51,7 +53,9 @@ def send_mail_activation(
 def send_mail_reset_password(email: str, next_url: str) -> None:
     """Send email reset password."""
     try:
-        reset_password_token = ResetPasswordToken.objects.create_token(email)
+        reset_password_token = UserResetPasswordToken.objects.create_token_for_email(
+            email
+        )
     except User.DoesNotExist:
         return
     reset_password_link = f"{next_url}?token={reset_password_token.token}"
@@ -155,7 +159,7 @@ class ActivateAccountView(APIView):
         data = serializer.validated_data
         token = data.get("token")
         try:
-            UserTokenEmailValidation.objects.validate_token(token)
+            UserEmailValidationToken.objects.validate_token(token)
         except TokenError as error:
             return Response(
                 {"error": str(error)},
@@ -196,7 +200,7 @@ class ResetPasswordView(APIView):
         data = serializer.validated_data
         token = data.get("token")
         try:
-            reset_password_token = ResetPasswordToken.objects.use_token(token)
+            reset_password_token = UserResetPasswordToken.objects.use_token(token)
         except TokenError as error:
             return Response(
                 {"error": str(error)},
@@ -228,3 +232,33 @@ class LogoutView(APIView):
             {"success": _("Logout successfully.")},
             status=status.HTTP_200_OK,
         )
+
+
+class MeView(ModelViewSet):
+    model = User
+    permission_classes = (IsAuthenticated,)
+    serializer_class = UserSerializer
+
+    def get_object(self) -> User:
+        """Get object."""
+        return User.objects.get(pk=self.request.user.pk)
+
+    def get_queryset(self):
+        return User.objects.filter(id=self.request.user.id)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = UserSerializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = UserSerializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def list(self, request, *args, **kwargs):
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)

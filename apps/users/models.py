@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Iterable
 from datetime import timedelta
 from typing import Any, ClassVar, Self, TypedDict, Unpack
 
@@ -104,6 +103,11 @@ class UserManager(BaseUserManager["User"]):
 
         return user
 
+    def anonymize_users(self: Self) -> None:
+        """Anonymize all users in the QuerySet."""
+        for user in self.all():
+            user.anonymize()
+
 
 class User(AbstractBaseUser, PermissionsMixin):
     """Base user model."""
@@ -119,21 +123,29 @@ class User(AbstractBaseUser, PermissionsMixin):
         verbose_name=_("email address"),
         max_length=255,
         unique=True,
+        blank=True,
+        null=True,
     )
 
     username = models.CharField(
         verbose_name=_("username"),
         max_length=255,
+        null=True,
+        blank=True,
     )
 
     first_name = models.CharField(
         verbose_name=_("first name"),
         max_length=255,
+        null=True,
+        blank=True,
     )
 
     last_name = models.CharField(
         verbose_name=_("last name"),
         max_length=255,
+        null=True,
+        blank=True,
     )
 
     is_active = models.BooleanField(default=True)
@@ -145,9 +157,10 @@ class User(AbstractBaseUser, PermissionsMixin):
         auto_now_add=True,
     )
 
-    token_email_validation: UserTokenEmailValidation
-    reset_password_token_set: models.Manager[ResetPasswordToken]
+    token_email_validation: UserEmailValidationToken
+    reset_password_token_set: models.Manager[UserResetPasswordToken]
     auth_token_set: models.Manager[AuthToken]
+    recovery_token: UserRecoveryToken
 
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"
@@ -177,7 +190,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def get_short_name(self: Self) -> str:
         """Return the short name for the user."""
-        return f"#{self.id}_{self.username}"
+        return f"{self.username}"
 
     def get_full_name(self: Self) -> str:
         """Return the full name for the user."""
@@ -188,20 +201,53 @@ class User(AbstractBaseUser, PermissionsMixin):
         **kwargs: Unpack[SendUserEmailOptions],
     ) -> None:
         """Send an email to this user."""
+        if not self.email:
+            raise ValueError(_("User does not have an email address."))
         send_mail(
             recipient_list=[self.email],
             **kwargs,
         )
+
+    def anonymize(self: Self) -> None:
+        """Anonymize the user."""
+        self.username = None
+        self.email = None
+        self.first_name = None
+        self.last_name = None
+        self.set_password(None)
+        # delete tokens
+        self.delete_email_validation_token()
+        self.delete_reset_password_tokens()
+        self.delete_auth_tokens()
+        # create recovery token
+        UserRecoveryToken.objects.create(user=self)
+
+        self.save()
+
+    def delete_email_validation_token(self: Self) -> None:
+        """Delete the email validation token."""
+        if hasattr(self, "token_email_validation"):
+            self.token_email_validation.delete()
+
+    def delete_reset_password_tokens(self: Self) -> None:
+        """Delete the reset password token."""
+        if hasattr(self, "reset_password_token_set"):
+            self.reset_password_token_set.all().delete()
+
+    def delete_auth_tokens(self: Self) -> None:
+        """Delete the auth tokens."""
+        if hasattr(self, "auth_token_set"):
+            self.auth_token_set.all().delete()
 
 
 class TokenError(Exception):
     """Base token error."""
 
 
-class UserTokenEmailValidationManager(models.Manager["UserTokenEmailValidation"]):
+class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]):
     """User token email validation manager."""
 
-    def create_token(self, user: User) -> UserTokenEmailValidation:
+    def create_token_for_user(self, user: User) -> UserEmailValidationToken:
         """Create a token."""
         # check if token for this user exists and is validated
         token_email_validation = self.filter(
@@ -223,13 +269,8 @@ class UserTokenEmailValidationManager(models.Manager["UserTokenEmailValidation"]
         if not token_email_validation:
             raise TokenError(_("Token does not exist."))
 
-        # if token is already validated, raise error
-        if token_email_validation.is_validated:
-            raise TokenError(_("Token is already validated."))
-
         # validate token
-        token_email_validation.validated_at = timezone.now()
-        token_email_validation.save()
+        token_email_validation.validate()
 
         return token_email_validation.user
 
@@ -244,8 +285,15 @@ class UserTokenEmailValidationManager(models.Manager["UserTokenEmailValidation"]
 
         token_email_validation.user.delete()
 
+    def regenerate_token_for_user(self, user: User) -> None:
+        """Regenerate the token."""
+        token_email_validation = self.filter(user=user).first()
+        if token_email_validation is None:
+            raise TokenError(_("Token does not exist."))
+        token_email_validation.regenerate_token()
 
-class UserTokenEmailValidation(models.Model):
+
+class UserEmailValidationToken(models.Model):
     """User token email validation model."""
 
     user = models.OneToOneField(
@@ -273,12 +321,17 @@ class UserTokenEmailValidation(models.Model):
         blank=True,
     )
 
+    expires_at = models.DateTimeField(
+        verbose_name=_("expires at"),
+        default=timezone.now() + timedelta(minutes=30),  # TODO: make this configurable
+    )
+
     objects: ClassVar[
-        UserTokenEmailValidationManager
-    ] = UserTokenEmailValidationManager()
+        UserEmailValidationTokenManager
+    ] = UserEmailValidationTokenManager()
 
     def __str__(self) -> str:
-        return f"#{self.user.id}_{self.user.username}_token_email_validation"
+        return f"#{self.user.id}_{self.user.username}_email_validation_token"
 
     class Meta(TypedModelMeta):
         """Meta options."""
@@ -288,44 +341,42 @@ class UserTokenEmailValidation(models.Model):
         verbose_name = _("user token email validation")
         verbose_name_plural = _("user token email validations")
 
-    def save(
-        self,
-        force_insert: bool = False,
-        force_update: bool = False,
-        using: str | None = None,
-        update_fields: Iterable[str] | None = None,
-    ) -> None:
-        """Save the model."""
-        # get previous instance
-        previous_instance = UserTokenEmailValidation.objects.filter(
-            pk=self.pk,
-        ).first()
-
-        if previous_instance and previous_instance.is_validated:
-            raise TokenError(_("Cannot save validated token."))
-        # if token already exists but is not validated, renew token
-        if (
-            UserTokenEmailValidation.objects.filter(
-                token=self.token,
-            )
-            .exclude(
-                validated_at__isnull=False,
-            )
-            .exists()
-        ):
-            self.token = secrets.token_urlsafe()
-        return super().save(force_insert, force_update, using, update_fields)
-
     @property
     def is_validated(self) -> bool:
         """Return whether the token is validated."""
         return self.validated_at is not None
 
+    @property
+    def is_expired(self) -> bool:
+        """Return whether the token is expired."""
+        return self.expires_at < timezone.now()
 
-class ResetPasswordTokenManager(models.Manager["ResetPasswordToken"]):
+    def regenerate_token(self) -> None:
+        """Regenerate the token."""
+        self.token = secrets.token_urlsafe()
+        self.created_at = timezone.now()
+        self.validated_at = None
+        self.expires_at = timezone.now() + timedelta(
+            minutes=30
+        )  # TODO: make this configurable
+        self.save()
+
+    def validate(self) -> None:
+        """Validate the token."""
+        # if token is already validated, raise error
+        if self.is_validated:
+            raise TokenError(_("Token is already validated."))
+        # if token is expired, raise error
+        if self.is_expired:
+            raise TokenError(_("Token is expired."))
+        self.validated_at = timezone.now()
+        self.save()
+
+
+class UserResetPasswordTokenManager(models.Manager["UserResetPasswordToken"]):
     """Reset password token manager."""
 
-    def create_token(self, email: str) -> ResetPasswordToken:
+    def create_token_for_email(self, email: str) -> UserResetPasswordToken:
         """Create a token."""
         # check if user exists
         user = User.objects.filter(email=email).first()
@@ -333,35 +384,21 @@ class ResetPasswordTokenManager(models.Manager["ResetPasswordToken"]):
             raise User.DoesNotExist(_("User does not exist."))
         return self.create(user=user)
 
-    def validate_token(self, token: str) -> ResetPasswordToken:
-        """Validate the token."""
+    def use_token(self, token: str) -> None:
+        """Use the token."""
         # check if token exists
         reset_password_token = self.filter(token=token).first()
         if not reset_password_token:
             raise TokenError(_("Token does not exist."))
-
-        # if token is expired, raise error
-        if reset_password_token.is_expired:
-            raise TokenError(_("Token is expired."))
-
-        if reset_password_token.is_used:
-            raise TokenError(_("Token is already used."))
-
-        return reset_password_token
-
-    def use_token(self, token: str) -> ResetPasswordToken:
-        """Use the token."""
-        reset_password_token = self.validate_token(token)
-        reset_password_token.used_at = timezone.now()
-        reset_password_token.save()
-        return reset_password_token
+        reset_password_token.use_token()
 
 
-class ResetPasswordToken(models.Model):
+class UserResetPasswordToken(models.Model):
     user = models.ForeignKey(
         verbose_name=_("user"),
         to=User,
         on_delete=models.CASCADE,
+        related_name="reset_password_token_set",
     )
 
     token = models.CharField(
@@ -387,7 +424,7 @@ class ResetPasswordToken(models.Model):
         blank=True,
     )
 
-    objects: ClassVar[ResetPasswordTokenManager] = ResetPasswordTokenManager()
+    objects: ClassVar[UserResetPasswordTokenManager] = UserResetPasswordTokenManager()
 
     def __str__(self) -> str:
         return f"#{self.user.id}_{self.user.username}_reset_password_token"
@@ -410,10 +447,60 @@ class ResetPasswordToken(models.Model):
         """Return whether the token is used."""
         return self.used_at is not None
 
+    def use_token(self: Self) -> None:
+        """Use the token."""
+        if self.is_used:
+            raise TokenError(_("Token is already used."))
+        if self.is_expired:
+            raise TokenError(_("Token is expired."))
+        self.used_at = timezone.now()
+        self.save()
+
 
 def generate_auth_token() -> str:
     """Generate a token."""
     return secrets.token_bytes(32).hex()
+
+
+class UserRecoveryTokenManager(models.Manager["UserRecoveryToken"]):
+    def create_token_for_user(self, user: User) -> UserRecoveryToken:
+        """Create a token."""
+        # check if token for this user exists and is validated
+        recovery_token = self.filter(
+            user=user,
+        ).first()
+        if recovery_token:
+            return recovery_token
+
+        # create token
+        recovery_token = self.create(user=user)
+        return recovery_token
+
+
+class UserRecoveryToken(models.Model):
+    user = models.OneToOneField(
+        verbose_name=_("user"),
+        to=User,
+        on_delete=models.CASCADE,
+        related_name="recovery_token",
+    )
+
+    token = models.CharField(
+        verbose_name=_("token"),
+        max_length=255,
+        default=secrets.token_urlsafe,
+        unique=True,
+    )
+
+    created_at = models.DateTimeField(
+        verbose_name=_("created at"),
+        auto_now_add=True,
+    )
+
+    objects: UserRecoveryTokenManager = UserRecoveryTokenManager()
+
+    def __str__(self) -> str:
+        return f"#{self.user.id}_{self.token}_recovery_token"
 
 
 class AuthToken(models.Model):
@@ -423,6 +510,7 @@ class AuthToken(models.Model):
         verbose_name=_("user"),
         to=User,
         on_delete=models.CASCADE,
+        related_name="auth_token_set",
     )
 
     key = models.CharField(

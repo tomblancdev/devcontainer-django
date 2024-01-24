@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from django import forms
 from django.contrib import admin
@@ -12,6 +12,9 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from .models import User
+
+if TYPE_CHECKING:
+    pass
 
 
 class UserCreationForm(forms.ModelForm):
@@ -121,6 +124,7 @@ class UserAdmin(BaseUserAdmin):
             },
         ),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
+        (_("Recovery"), {"fields": ("recovery_token",)}),
     )
 
     add_fieldsets = (
@@ -143,7 +147,22 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ("email", "username", "first_name", "last_name")
     ordering = ("email", "username", "first_name", "last_name")
     filter_horizontal = ()
-    readonly_fields = ("last_login", "date_joined", "email_verified")
+    readonly_fields = ("last_login", "date_joined", "email_verified", "recovery_token")
+
+    # creating field to get recovery link if exists
+    def recovery_token(self, obj):
+        if hasattr(obj, "recovery_token"):
+            return obj.recovery_token
+        return None
+
+    # add extra action to anonymize user
+    def anonymize_user(self, request, queryset):
+        for user in queryset:
+            user.anonymize()
+
+    anonymize_user.short_description = _("Anonymize selected users")  # type: ignore
+
+    actions = (anonymize_user,)
 
 
 admin.site.register(User, UserAdmin)

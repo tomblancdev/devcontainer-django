@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import uuid
+from typing import Self
 
 from django.test import TestCase
-from django.utils import timezone
-from rest_framework.test import APIClient
 
-from users.models import AuthToken, User, UserTokenEmailValidation
+from users.models import (
+    AuthToken,
+    User,
+    UserEmailValidationToken,
+    UserRecoveryToken,
+    UserResetPasswordToken,
+)
 
 
 class FakeUserInfos:
@@ -36,35 +41,75 @@ class FakeUserInfos:
             different_password = f"{uuid.uuid4()}"
         return different_password
 
+    def copy(self):
+        """Return a copy of the object."""
+        copy = FakeUserInfos()
+        copy.email = self.email
+        copy.username = self.username
+        copy.first_name = self.first_name
+        copy.last_name = self.last_name
+        copy.password = self.password
+        return copy
 
-class TestUserSetup(TestCase):
-    """Setup tests for the users app."""
 
-    def setUp(self):
-        """Setup for the tests."""
-        self.client = APIClient()
-        self.user_infos = FakeUserInfos()
-        self.verified_user, self.verified_user_token = self.generate_user(
-            self.user_infos,
-            email_verified=True,
-        )
-        # create authToken for the verified user
-        self.verified_user_auth_token = AuthToken.objects.create(
-            user=self.verified_user
-        )
-        # authentificate the client
-        self.client.credentials(
-            HTTP_AUTHORIZATION=f"Token {self.verified_user_auth_token.key}"
-        )
-
-    def generate_user(
-        self,
-        user_infos: FakeUserInfos,
+class UsingUser(object):
+    def __init__(
+        self: Self,
+        user_infos: FakeUserInfos = FakeUserInfos(),
         is_staff: bool = False,
         is_admin: bool = False,
         is_superuser: bool = False,
-        email_verified: bool = False,
-    ) -> tuple[User, UserTokenEmailValidation]:
+        with_email_validation_token: bool = False,
+        with_reset_password_token: bool = False,
+        with_auth_token: bool = False,
+        with_recovery_token: bool = False,
+    ) -> None:
+        """Init."""
+        self.user_infos = user_infos
+        self.is_staff = is_staff
+        self.is_admin = is_admin
+        self.is_superuser = is_superuser
+        self.with_email_validation_token = with_email_validation_token
+        self.with_reset_password_token = with_reset_password_token
+        self.with_auth_token = with_auth_token
+        self.with_recovery_token = with_recovery_token
+
+    def __enter__(self: Self) -> User:
+        """Enter."""
+        self.user = self.generate_user(
+            user_infos=self.user_infos,
+            is_staff=self.is_staff,
+            is_admin=self.is_admin,
+            is_superuser=self.is_superuser,
+        )
+        if self.with_email_validation_token:
+            self.email_token = UserEmailValidationToken.objects.create_token_for_user(
+                self.user
+            )
+        if self.with_reset_password_token and self.user.email:
+            self.reset_password_token = (
+                UserResetPasswordToken.objects.create_token_for_email(self.user.email)
+            )
+        if self.with_auth_token:
+            self.auth_token = AuthToken.objects.create(user=self.user)
+        if self.with_recovery_token:
+            self.recovery_token = UserRecoveryToken.objects.create_token_for_user(
+                self.user
+            )
+
+        return self.user
+
+    def __exit__(self: Self, exc_type, exc_value, traceback) -> None:
+        """Exit."""
+        self.user.delete()
+
+    def generate_user(
+        self,
+        user_infos: FakeUserInfos = FakeUserInfos(),
+        is_staff: bool = False,
+        is_admin: bool = False,
+        is_superuser: bool = False,
+    ) -> User:
         """Create a user."""
         user = User.objects.create_user(
             email=user_infos.email,
@@ -76,11 +121,9 @@ class TestUserSetup(TestCase):
         user.is_staff = is_staff
         user.is_superuser = is_superuser
         user.is_admin = is_admin
-        user_token_email_validation = UserTokenEmailValidation.objects.create_token(
-            user
-        )
-        if email_verified:
-            # create mail validation token
-            user_token_email_validation.validated_at = timezone.now()
-            user_token_email_validation.save()
-        return user, user_token_email_validation
+
+        return user
+
+
+class UserSetupTestCase(TestCase):
+    """Test setup for user tests."""
