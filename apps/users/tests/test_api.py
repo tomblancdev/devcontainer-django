@@ -70,7 +70,8 @@ class TestRegisterView(APISetupTestCase):
         }
         response = self.client.post(self.endpoint, data=data)
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data.get("success"), "User created successfully.")
+        json_response = response.json()
+        self.assertEqual(json_response["success"], "User created successfully.")
 
     def test_post_with_missing_data(self):
         """Test HTTP POST request with missing data."""
@@ -282,7 +283,9 @@ class TestChangePasswordView(APISetupTestCase):
         super().setUp()
         self.user = UsingUser(email_validated=True, with_auth_token=True).__enter__()
         self.auth_token = self.user.auth_token_set.first()
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.auth_token.key}")
+        if not self.auth_token:
+            raise Exception("No auth token found.")
+        self.client.defaults["HTTP_AUTHORIZATION"] = f"Token {self.auth_token.key}"
 
     def test_post(self):
         """Test HTTP POST request."""
@@ -375,7 +378,7 @@ class TestChangePasswordView(APISetupTestCase):
 
     def test_post_for_unauthenticated_user(self):
         """Test HTTP POST request for unauthenticated user."""
-        self.client.credentials()
+        self.client.defaults["HTTP_AUTHORIZATION"] = ""
         current_password = uuid4().hex
         new_password = uuid4().hex
         self.user.set_password(current_password)
@@ -643,7 +646,7 @@ class TestLogoutView(APISetupTestCase):
         super().setUp()
         self.user = UsingUser(with_auth_token=True).setUp()
         self.auth_token = self.user.auth_token_set.first()
-        self.client.credentials(HTTP_AUTHORIZATION=f"Token {self.auth_token.key}")
+        self.client.defaults["HTTP_AUTHORIZATION"] = f"Token {self.auth_token.key}"
 
     def test_post(self):
         """Test HTTP POST request."""
@@ -656,7 +659,7 @@ class TestLogoutView(APISetupTestCase):
 
     def test_post_for_unauthenticated_user(self):
         """Test HTTP POST request for unauthenticated user."""
-        self.client.credentials()
+        self.client.defaults["HTTP_AUTHORIZATION"] = ""
         response = self.client.post(self.endpoint)
         self.assertEqual(response.status_code, 401)
 

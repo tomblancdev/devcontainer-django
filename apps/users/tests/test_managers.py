@@ -65,6 +65,8 @@ class TestUserManager(UserSetupTestCase):
         """Test create_user method with existing email."""
         with UsingUser() as user:
             user_infos = FakeUserInfos()
+            if not user.email:
+                raise ValueError("user email must be set")
             user_infos.email = user.email
             with self.assertRaises(ValueError):
                 User.objects.create_user(**user_infos.__dict__)
@@ -73,8 +75,14 @@ class TestUserManager(UserSetupTestCase):
         """Test create_user method with existing non unique values."""
         with UsingUser() as user:
             user_infos = FakeUserInfos()
+            if not user.username:
+                raise ValueError("user username must be set")
             user_infos.username = user.username
+            if not user.first_name:
+                raise ValueError("user first_name must be set")
             user_infos.first_name = user.first_name
+            if not user.last_name:
+                raise ValueError("user last_name must be set")
             user_infos.last_name = user.last_name
             new_user = User.objects.create_user(**user_infos.__dict__)
             self.assertEqual(new_user.email, user_infos.email)
