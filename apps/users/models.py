@@ -333,9 +333,13 @@ class UserEmailValidationToken(models.Model):
 
     expires_at = models.DateTimeField(
         verbose_name=_("expires at"),
+        blank=True,
+        null=True,
         default=(
             timezone.now() + timedelta(seconds=EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME)
-        ),
+        )
+        if EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME is not None
+        else None,
     )
 
     objects: ClassVar[
@@ -363,6 +367,8 @@ class UserEmailValidationToken(models.Model):
     @property
     def is_expired(self: Self) -> bool:
         """Return whether the token is expired."""
+        if self.expires_at is None:
+            return False
         return self.expires_at < timezone.now()
 
     def regenerate_token(self: Self) -> None:
@@ -370,8 +376,11 @@ class UserEmailValidationToken(models.Model):
         self.token = secrets.token_urlsafe()
         self.created_at = timezone.now()
         self.validated_at = None
-        self.expires_at = timezone.now() + timedelta(
-            seconds=EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME
+
+        self.expires_at = (
+            (timezone.now() + timedelta(seconds=EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME))
+            if EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME is not None
+            else None
         )
         self.save()
 
@@ -434,7 +443,11 @@ class UserResetPasswordToken(models.Model):
 
     expires_at = models.DateTimeField(
         verbose_name=_("expires at"),
-        default=timezone.now() + timedelta(RESET_PASSWORD_TOKEN_EXPIRATION_TIME),
+        default=(
+            timezone.now() + timedelta(seconds=RESET_PASSWORD_TOKEN_EXPIRATION_TIME)
+        )
+        if RESET_PASSWORD_TOKEN_EXPIRATION_TIME is not None
+        else None,
     )
 
     used_at = models.DateTimeField(
@@ -557,7 +570,9 @@ class AuthToken(models.Model):
         verbose_name=_("expires at"),
         null=True,
         blank=True,
-        default=timezone.now() + timedelta(seconds=AUTH_TOKEN_EXPIRATION_TIME),
+        default=(timezone.now() + timedelta(seconds=AUTH_TOKEN_EXPIRATION_TIME))
+        if AUTH_TOKEN_EXPIRATION_TIME is not None
+        else None,
     )
 
     objects: ClassVar[models.Manager[AuthToken]] = models.Manager()
