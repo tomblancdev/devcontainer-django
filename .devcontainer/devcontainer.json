@@ -25,7 +25,6 @@
 				"njpwerner.autodocstring",
 				"charliermarsh.ruff",
 				"ms-python.mypy-type-checker",
-				"ms-python.black-formatter",
 				"aaron-bond.better-comments",
 				"tamasfe.even-better-toml"
 			],
@@ -41,7 +40,7 @@
 				"editor.formatOnPaste": true,
 				// ### Python ###
 				"[python]": {
-					"editor.defaultFormatter": "ms-python.black-formatter"
+					"editor.defaultFormatter": "charliermarsh.ruff"
 				},
 				"python.defaultInterpreterPath": "/workspace/.venv/bin/python",
 				"python.terminal.activateEnvInCurrentTerminal": true,
