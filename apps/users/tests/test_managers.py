@@ -1,6 +1,9 @@
+# ruff: noqa: PT009 PT027
 """Test Managers for users app."""
 
 from __future__ import annotations
+
+from typing import Self
 
 from django.utils import timezone
 
@@ -14,9 +17,10 @@ from users.tests.test_setup import FakeUserInfos, UserSetupTestCase, UsingUser
 
 
 class TestUserManager(UserSetupTestCase):
+
     """Test UserManager."""
 
-    def test_create_user(self) -> None:
+    def test_create_user(self: Self) -> None:
         """Test create_user method."""
         user_infos = FakeUserInfos()
 
@@ -40,49 +44,53 @@ class TestUserManager(UserSetupTestCase):
         self.assertTrue(user.is_active)
         self.assertFalse(user.is_anonymous)
 
-    def test_create_user_with_missing_data(self) -> None:
+    def test_create_user_with_missing_data(self: Self) -> None:
         """Test create_user method with missing data."""
         user_infos = FakeUserInfos()
 
-        for key in user_infos.__dict__.keys():
+        for key in user_infos.__dict__:
             user_info_copy = user_infos.copy()
             delattr(user_info_copy, key)
             with self.assertRaises(ValueError):
                 User.objects.create_user(**user_info_copy.__dict__)
 
-    def test_create_user_with_empty_strings_values(self) -> None:
+    def test_create_user_with_empty_strings_values(self: Self) -> None:
         """Test create_user method with empty strings values."""
         user_infos = FakeUserInfos()
 
-        for key in user_infos.__dict__.keys():
+        for key in user_infos.__dict__:
             user_info_copy = user_infos.copy()
             if isinstance(getattr(user_info_copy, key), str):
                 setattr(user_info_copy, key, "")
                 with self.assertRaises(ValueError):
                     User.objects.create_user(**user_info_copy.__dict__)
 
-    def test_create_user_with_existing_email(self) -> None:
+    def test_create_user_with_existing_email(self: Self) -> None:
         """Test create_user method with existing email."""
         with UsingUser() as user:
             user_infos = FakeUserInfos()
             if not user.email:
-                raise ValueError("user email must be set")
+                msg = "user email must be set"
+                raise ValueError(msg)
             user_infos.email = user.email
             with self.assertRaises(ValueError):
                 User.objects.create_user(**user_infos.__dict__)
 
-    def test_create_user_with_existing_non_unique_values(self) -> None:
+    def test_create_user_with_existing_non_unique_values(self: Self) -> None:
         """Test create_user method with existing non unique values."""
         with UsingUser() as user:
             user_infos = FakeUserInfos()
             if not user.username:
-                raise ValueError("user username must be set")
+                msg = "user username must be set"
+                raise ValueError(msg)
             user_infos.username = user.username
             if not user.first_name:
-                raise ValueError("user first_name must be set")
+                msg = "user first_name must be set"
+                raise ValueError(msg)
             user_infos.first_name = user.first_name
             if not user.last_name:
-                raise ValueError("user last_name must be set")
+                msg = "user last_name must be set"
+                raise ValueError(msg)
             user_infos.last_name = user.last_name
             new_user = User.objects.create_user(**user_infos.__dict__)
             self.assertEqual(new_user.email, user_infos.email)
@@ -90,7 +98,7 @@ class TestUserManager(UserSetupTestCase):
             self.assertEqual(new_user.first_name, user.first_name)
             self.assertEqual(new_user.last_name, user.last_name)
 
-    def test_create_superuser(self) -> None:
+    def test_create_superuser(self: Self) -> None:
         """Test create_superuser method."""
         user_infos = FakeUserInfos()
 
@@ -113,15 +121,15 @@ class TestUserManager(UserSetupTestCase):
         self.assertTrue(user.email_verified)
         self.assertTrue(user.is_active)
 
-    def test_anonymize_users(self) -> None:
+    def test_anonymize_users(self: Self) -> None:
         """Test anonymize_users method."""
         with UsingUser() as user:
             User.objects.get(pk=user.pk).anonymize()
             user.refresh_from_db()
-            self.assertIsNone(user.username)
-            self.assertIsNone(user.first_name)
-            self.assertIsNone(user.last_name)
-            self.assertIsNone(user.email)
+            self.assertEqual(user.username, "")
+            self.assertEqual(user.first_name, "")
+            self.assertEqual(user.last_name, "")
+            self.assertEqual(user.email, None)
             self.assertFalse(user.email_verified)
             self.assertFalse(hasattr(user, "token_email_validation"))
             self.assertTrue(hasattr(user, "recovery_token"))
@@ -130,9 +138,10 @@ class TestUserManager(UserSetupTestCase):
 
 
 class TestUserEmailValidationTokenManager(UserSetupTestCase):
+
     """Test UserEmailValidationTokenManager."""
 
-    def test_create_token(self) -> None:
+    def test_create_token(self: Self) -> None:
         """Test create_token method."""
         with UsingUser() as user:
             token = UserEmailValidationToken.objects.create_token_for_user(user)
@@ -143,14 +152,14 @@ class TestUserEmailValidationTokenManager(UserSetupTestCase):
             self.assertFalse(token.is_expired)
             self.assertFalse(token.is_validated)
 
-    def test_create_token_with_existing_token(self) -> None:
+    def test_create_token_with_existing_token(self: Self) -> None:
         """Test create_token method with existing token."""
         with UsingUser(with_email_validation_token=True) as user:
             user.token_email_validation.validate()
             with self.assertRaises(TokenError):
                 UserEmailValidationToken.objects.create_token_for_user(user)
 
-    def test_validate_token(self) -> None:
+    def test_validate_token(self: Self) -> None:
         """Test validate_token method."""
         with UsingUser(with_email_validation_token=True) as user:
             token = user.token_email_validation.token
@@ -158,31 +167,31 @@ class TestUserEmailValidationTokenManager(UserSetupTestCase):
             user.refresh_from_db()
             self.assertTrue(user.token_email_validation.is_validated)
 
-    def test_validate_token_with_invalid_token(self) -> None:
+    def test_validate_token_with_invalid_token(self: Self) -> None:
         """Test validate_token method with invalid token."""
         with self.assertRaises(TokenError):
             UserEmailValidationToken.objects.validate_token("invalid_token")
 
-    def test_validate_token_with_expired_token(self) -> None:
+    def test_validate_token_with_expired_token(self: Self) -> None:
         """Test validate_token method with expired token."""
         with UsingUser(with_email_validation_token=True) as user:
             user.token_email_validation.expires_at = timezone.now()
             user.token_email_validation.save()
             with self.assertRaises(TokenError):
                 UserEmailValidationToken.objects.validate_token(
-                    user.token_email_validation.token
+                    user.token_email_validation.token,
                 )
 
-    def test_validate_token_with_already_validated_token(self) -> None:
+    def test_validate_token_with_already_validated_token(self: Self) -> None:
         """Test validate_token method with already validated token."""
         with UsingUser(with_email_validation_token=True) as user:
             user.token_email_validation.validate()
             with self.assertRaises(TokenError):
                 UserEmailValidationToken.objects.validate_token(
-                    user.token_email_validation.token
+                    user.token_email_validation.token,
                 )
 
-    def test_regenerate_token(self) -> None:
+    def test_regenerate_token(self: Self) -> None:
         """Test regenerate_token method."""
         with UsingUser(with_email_validation_token=True) as user:
             old_token = user.token_email_validation.token
@@ -195,21 +204,22 @@ class TestUserEmailValidationTokenManager(UserSetupTestCase):
             self.assertNotEqual(user.token_email_validation.token, old_token)
             self.assertNotEqual(user.token_email_validation.expires_at, old_expires_at)
 
-    def test_regenerate_unexisting_token(self) -> None:
+    def test_regenerate_unexisting_token(self: Self) -> None:
         """Test regenerate_token method with unexisting token."""
-        with UsingUser() as user:
-            with self.assertRaises(TokenError):
-                UserEmailValidationToken.objects.regenerate_token_for_user(user)
+        with UsingUser() as user, self.assertRaises(TokenError):
+            UserEmailValidationToken.objects.regenerate_token_for_user(user)
 
 
 class TestUserResetPasswordTokenManager(UserSetupTestCase):
+
     """Test UserResetPasswordTokenManager."""
 
-    def test_create_token_for_email(self) -> None:
+    def test_create_token_for_email(self: Self) -> None:
         """Test create_token method."""
         with UsingUser() as user:
             if not user.email:
-                raise ValueError("user email must be set")
+                msg = "user email must be set"
+                raise ValueError(msg)
             token = UserResetPasswordToken.objects.create_token_for_email(user.email)
             self.assertEqual(token.user, user)
             self.assertIsNotNone(token.token)
@@ -218,43 +228,46 @@ class TestUserResetPasswordTokenManager(UserSetupTestCase):
             self.assertFalse(token.is_expired)
             self.assertFalse(token.is_used)
 
-    def test_create_token_for_unexisting_user(self) -> None:
+    def test_create_token_for_unexisting_user(self: Self) -> None:
         """Test create_token method for unexisting user."""
         with self.assertRaises(User.DoesNotExist):
             UserResetPasswordToken.objects.create_token_for_email("not_user@test.com")
 
-    def test_use_token(self) -> None:
+    def test_use_token(self: Self) -> None:
         """Test use_token method."""
         with UsingUser(with_reset_password_token=True) as user:
             token = user.reset_password_token_set.first()
             if not token:
-                raise ValueError("token must be set")
+                msg = "token must be set"
+                raise ValueError(msg)
             UserResetPasswordToken.objects.use_token(token.token)
             token.refresh_from_db()
             self.assertTrue(token.is_used)
 
-    def test_use_token_with_invalid_token(self) -> None:
+    def test_use_token_with_invalid_token(self: Self) -> None:
         """Test use_token method with invalid token."""
         with self.assertRaises(TokenError):
             UserResetPasswordToken.objects.use_token("invalid_token")
 
-    def test_use_token_with_expired_token(self) -> None:
+    def test_use_token_with_expired_token(self: Self) -> None:
         """Test use_token method with expired token."""
         with UsingUser(with_reset_password_token=True) as user:
             token = user.reset_password_token_set.first()
             if not token:
-                raise ValueError("token must be set")
+                msg = "token must be set"
+                raise ValueError(msg)
             token.expires_at = timezone.now()
             token.save()
             with self.assertRaises(TokenError):
                 UserResetPasswordToken.objects.use_token(token.token)
 
-    def test_use_token_with_already_used_token(self) -> None:
+    def test_use_token_with_already_used_token(self: Self) -> None:
         """Test use_token method with already used token."""
         with UsingUser(with_reset_password_token=True) as user:
             token = user.reset_password_token_set.first()
             if not token:
-                raise ValueError("token must be set")
+                msg = "token must be set"
+                raise ValueError(msg)
             token.used_at = timezone.now()
             token.save()
             with self.assertRaises(TokenError):

@@ -65,7 +65,7 @@ DATABASES: dict[str, dict[str, object]] = {
         "HOST": os.environ.get("DB_HOST"),
         "PORT": os.environ.get("DB_PORT"),
         "PASSWORD": os.environ.get("DB_PASSWORD"),
-    }
+    },
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

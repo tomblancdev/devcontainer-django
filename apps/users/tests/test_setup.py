@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from django.test import TestCase
 
@@ -15,11 +15,15 @@ from users.models import (
     UserResetPasswordToken,
 )
 
+if TYPE_CHECKING:
+    from types import TracebackType
+
 
 class FakeUserInfos:
+
     """Generate fake user informations."""
 
-    def __init__(self):
+    def __init__(self: Self) -> None:
         """Init."""
         self.email = f"{uuid.uuid4()}@test.com"
         self.username = f"{uuid.uuid4()}"
@@ -27,21 +31,21 @@ class FakeUserInfos:
         self.last_name = f"{uuid.uuid4()}"
         self.password = f"{uuid.uuid4()}"
 
-    def get_different_email(self):
+    def get_different_email(self: Self) -> str:
         """Get a different email."""
         different_email = f"{uuid.uuid4()}@test.com"
         while different_email == self.email:
             different_email = f"{uuid.uuid4()}@test.com"
         return different_email
 
-    def get_different_password(self):
+    def get_different_password(self: Self) -> str:
         """Get a different password."""
         different_password = f"{uuid.uuid4()}"
         while different_password == self.password:
             different_password = f"{uuid.uuid4()}"
         return different_password
 
-    def copy(self):
+    def copy(self: Self) -> FakeUserInfos:
         """Return a copy of the object."""
         copy = FakeUserInfos()
         copy.email = self.email
@@ -52,10 +56,14 @@ class FakeUserInfos:
         return copy
 
 
-class UsingUser(object):
-    def __init__(
+class UsingUser:
+
+    """Create a user for tests."""
+
+    def __init__(  # noqa: PLR0913
         self: Self,
-        user_infos: FakeUserInfos = FakeUserInfos(),
+        user_infos: FakeUserInfos | None = None,
+        *,
         is_staff: bool = False,
         is_admin: bool = False,
         is_superuser: bool = False,
@@ -66,13 +74,13 @@ class UsingUser(object):
         with_recovery_token: bool = False,
     ) -> None:
         """Init."""
-        self.user_infos = user_infos
+        self.user_infos = user_infos or FakeUserInfos()
         self.is_staff = is_staff
         self.is_admin = is_admin
         self.is_superuser = is_superuser
         self.email_validated = email_validated
         self.with_email_validation_token = (
-            with_email_validation_token or email_validated
+            with_email_validation_token or self.email_validated
         )
         self.with_reset_password_token = with_reset_password_token
         self.with_auth_token = with_auth_token
@@ -84,42 +92,38 @@ class UsingUser(object):
 
         return self.user
 
-    def __exit__(self: Self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self: Self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         """Exit."""
         self.user.delete()
 
     def generate_user(
-        self,
-        user_infos: FakeUserInfos = FakeUserInfos(),
-        is_staff: bool = False,
-        is_admin: bool = False,
-        is_superuser: bool = False,
+        self: Self,
     ) -> User:
         """Create a user."""
         user = User.objects.create_user(
-            email=user_infos.email,
-            username=user_infos.username,
-            first_name=user_infos.first_name,
-            last_name=user_infos.last_name,
-            password=user_infos.password,
+            email=self.user_infos.email,
+            username=self.user_infos.username,
+            first_name=self.user_infos.first_name,
+            last_name=self.user_infos.last_name,
+            password=self.user_infos.password,
         )
-        user.is_staff = is_staff
-        user.is_superuser = is_superuser
-        user.is_admin = is_admin
+        user.is_staff = self.is_staff
+        user.is_superuser = self.is_superuser
+        user.is_admin = self.is_admin
 
         return user
 
-    def setUp(self):
+    def setUp(self: Self) -> User:
         """Set up."""
-        self.user = self.generate_user(
-            user_infos=self.user_infos,
-            is_staff=self.is_staff,
-            is_admin=self.is_admin,
-            is_superuser=self.is_superuser,
-        )
+        self.user = self.generate_user()
         if self.with_email_validation_token:
             self.email_token = UserEmailValidationToken.objects.create_token_for_user(
-                self.user
+                self.user,
             )
             if self.email_validated:
                 self.email_token.validate()
@@ -131,11 +135,12 @@ class UsingUser(object):
             self.auth_token = AuthToken.objects.create(user=self.user)
         if self.with_recovery_token:
             self.recovery_token = UserRecoveryToken.objects.create_token_for_user(
-                self.user
+                self.user,
             )
 
         return self.user
 
 
 class UserSetupTestCase(TestCase):
+
     """Test setup for user tests."""

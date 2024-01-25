@@ -21,6 +21,7 @@ from django_stubs_ext.db.models import TypedModelMeta
 
 
 class SendUserEmailOptions(TypedDict, total=False):
+
     """Type Options for sending an email."""
 
     subject: str
@@ -34,9 +35,10 @@ class SendUserEmailOptions(TypedDict, total=False):
 
 
 class UserManager(BaseUserManager["User"]):
+
     """User manager."""
 
-    def create_user(
+    def create_user(  # noqa: PLR0913
         self: Self,
         email: str | None = None,
         username: str | None = None,
@@ -78,7 +80,7 @@ class UserManager(BaseUserManager["User"]):
 
         return user
 
-    def create_superuser(
+    def create_superuser(  # noqa: PLR0913
         self: Self,
         email: str,
         username: str,
@@ -110,6 +112,7 @@ class UserManager(BaseUserManager["User"]):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+
     """Base user model."""
 
     id = models.BigAutoField(
@@ -130,22 +133,19 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(
         verbose_name=_("username"),
         max_length=255,
-        null=True,
-        blank=True,
+        default="",
     )
 
     first_name = models.CharField(
         verbose_name=_("first name"),
         max_length=255,
-        null=True,
-        blank=True,
+        default="",
     )
 
     last_name = models.CharField(
         verbose_name=_("last name"),
         max_length=255,
-        null=True,
-        blank=True,
+        default="",
     )
 
     is_active = models.BooleanField(default=True)
@@ -164,14 +164,16 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = "email"
     EMAIL_FIELD = "email"
-    REQUIRED_FIELDS = ["username", "first_name", "last_name"]
+    REQUIRED_FIELDS: ClassVar[list[str]] = ["username", "first_name", "last_name"]
 
     objects: ClassVar[UserManager] = UserManager()
 
     def __str__(self: Self) -> str:
+        """Return string representation."""
         return f"#{self.id}_{self.username}"
 
     class Meta(TypedModelMeta):
+
         """Meta options."""
 
         abstract = "users" not in settings.INSTALLED_APPS
@@ -210,10 +212,10 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def anonymize(self: Self) -> None:
         """Anonymize the user."""
-        self.username = None
+        self.username = ""
         self.email = None
-        self.first_name = None
-        self.last_name = None
+        self.first_name = ""
+        self.last_name = ""
         self.set_password(None)
         # delete tokens
         self.delete_email_validation_token()
@@ -241,13 +243,15 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class TokenError(Exception):
+
     """Base token error."""
 
 
 class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]):
+
     """User token email validation manager."""
 
-    def create_token_for_user(self, user: User) -> UserEmailValidationToken:
+    def create_token_for_user(self: Self, user: User) -> UserEmailValidationToken:
         """Create a token."""
         # check if token for this user exists and is validated
         token_email_validation = self.filter(
@@ -259,10 +263,9 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
             return token_email_validation
 
         # create token
-        token_email_validation = self.create(user=user)
-        return token_email_validation
+        return self.create(user=user)
 
-    def validate_token(self, token: str) -> User:
+    def validate_token(self: Self, token: str) -> User:
         """Validate the token."""
         # check if token exists
         token_email_validation = self.filter(token=token).first()
@@ -274,7 +277,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
 
         return token_email_validation.user
 
-    def unregister_user_with_token(self, token: str) -> None:
+    def unregister_user_with_token(self: Self, token: str) -> None:
         """Unregister the user if the token is not validated."""
         token_email_validation = self.filter(token=token).first()
         if token_email_validation is None:
@@ -285,7 +288,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
 
         token_email_validation.user.delete()
 
-    def regenerate_token_for_user(self, user: User) -> None:
+    def regenerate_token_for_user(self: Self, user: User) -> None:
         """Regenerate the token."""
         token_email_validation = self.filter(user=user).first()
         if token_email_validation is None:
@@ -294,6 +297,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
 
 
 class UserEmailValidationToken(models.Model):
+
     """User token email validation model."""
 
     user = models.OneToOneField(
@@ -323,17 +327,15 @@ class UserEmailValidationToken(models.Model):
 
     expires_at = models.DateTimeField(
         verbose_name=_("expires at"),
-        default=timezone.now() + timedelta(minutes=30),  # TODO: make this configurable
+        default=timezone.now() + timedelta(minutes=30),  #  TODO make this configurable
     )
 
     objects: ClassVar[
         UserEmailValidationTokenManager
     ] = UserEmailValidationTokenManager()
 
-    def __str__(self) -> str:
-        return f"#{self.user.id}_{self.user.username}_email_validation_token"
-
     class Meta(TypedModelMeta):
+
         """Meta options."""
 
         abstract = "users" not in settings.INSTALLED_APPS
@@ -341,27 +343,31 @@ class UserEmailValidationToken(models.Model):
         verbose_name = _("user token email validation")
         verbose_name_plural = _("user token email validations")
 
+    def __str__(self: Self) -> str:
+        """Return string representation."""
+        return f"#{self.user.id}_{self.user.username}_email_validation_token"
+
     @property
-    def is_validated(self) -> bool:
+    def is_validated(self: Self) -> bool:
         """Return whether the token is validated."""
         return self.validated_at is not None
 
     @property
-    def is_expired(self) -> bool:
+    def is_expired(self: Self) -> bool:
         """Return whether the token is expired."""
         return self.expires_at < timezone.now()
 
-    def regenerate_token(self) -> None:
+    def regenerate_token(self: Self) -> None:
         """Regenerate the token."""
         self.token = secrets.token_urlsafe()
         self.created_at = timezone.now()
         self.validated_at = None
         self.expires_at = timezone.now() + timedelta(
-            minutes=30
+            minutes=30,
         )  # TODO: make this configurable
         self.save()
 
-    def validate(self) -> None:
+    def validate(self: Self) -> None:
         """Validate the token."""
         # if token is already validated, raise error
         if self.is_validated:
@@ -374,9 +380,10 @@ class UserEmailValidationToken(models.Model):
 
 
 class UserResetPasswordTokenManager(models.Manager["UserResetPasswordToken"]):
+
     """Reset password token manager."""
 
-    def create_token_for_email(self, email: str) -> UserResetPasswordToken:
+    def create_token_for_email(self: Self, email: str) -> UserResetPasswordToken:
         """Create a token."""
         # check if user exists
         user = User.objects.filter(email=email).first()
@@ -384,7 +391,7 @@ class UserResetPasswordTokenManager(models.Manager["UserResetPasswordToken"]):
             raise User.DoesNotExist(_("User does not exist."))
         return self.create(user=user)
 
-    def use_token(self, token: str) -> UserResetPasswordToken:
+    def use_token(self: Self, token: str) -> UserResetPasswordToken:
         """Use the token."""
         # check if token exists
         reset_password_token = self.filter(token=token).first()
@@ -395,6 +402,9 @@ class UserResetPasswordTokenManager(models.Manager["UserResetPasswordToken"]):
 
 
 class UserResetPasswordToken(models.Model):
+
+    """Reset password token model."""
+
     user = models.ForeignKey(
         verbose_name=_("user"),
         to=User,
@@ -427,16 +437,18 @@ class UserResetPasswordToken(models.Model):
 
     objects: ClassVar[UserResetPasswordTokenManager] = UserResetPasswordTokenManager()
 
-    def __str__(self) -> str:
-        return f"#{self.user.id}_{self.user.username}_reset_password_token"
-
     class Meta(TypedModelMeta):
+
         """Meta options."""
 
         abstract = "users" not in settings.INSTALLED_APPS
 
         verbose_name = _("reset password token")
         verbose_name_plural = _("reset password tokens")
+
+    def __str__(self: Self) -> str:
+        """Return string representation."""
+        return f"#{self.user.id}_{self.user.username}_reset_password_token"
 
     @property
     def is_expired(self: Self) -> bool:
@@ -464,7 +476,10 @@ def generate_auth_token() -> str:
 
 
 class UserRecoveryTokenManager(models.Manager["UserRecoveryToken"]):
-    def create_token_for_user(self, user: User) -> UserRecoveryToken:
+
+    """User recovery token manager."""
+
+    def create_token_for_user(self: Self, user: User) -> UserRecoveryToken:
         """Create a token."""
         # check if token for this user exists and is validated
         recovery_token = self.filter(
@@ -474,11 +489,13 @@ class UserRecoveryTokenManager(models.Manager["UserRecoveryToken"]):
             return recovery_token
 
         # create token
-        recovery_token = self.create(user=user)
-        return recovery_token
+        return self.create(user=user)
 
 
 class UserRecoveryToken(models.Model):
+
+    """User recovery token model."""
+
     user = models.OneToOneField(
         verbose_name=_("user"),
         to=User,
@@ -500,11 +517,13 @@ class UserRecoveryToken(models.Model):
 
     objects: UserRecoveryTokenManager = UserRecoveryTokenManager()
 
-    def __str__(self) -> str:
+    def __str__(self: Self) -> str:
+        """Return string representation."""
         return f"#{self.user.id}_{self.token}_recovery_token"
 
 
 class AuthToken(models.Model):
+
     """Authentification token model."""
 
     user = models.ForeignKey(
@@ -534,17 +553,18 @@ class AuthToken(models.Model):
 
     objects: ClassVar[models.Manager[AuthToken]] = models.Manager()
 
-    def __str__(self) -> str:
-        """Return string representation."""
-        return f"#{self.user.id}_{self.user.username}_auth_token"
-
     class Meta(TypedModelMeta):
+
         """Meta options."""
 
         abstract = "users" not in settings.INSTALLED_APPS
 
         verbose_name = _("auth token")
         verbose_name_plural = _("auth tokens")
+
+    def __str__(self: Self) -> str:
+        """Return string representation."""
+        return f"#{self.user.id}_{self.user.username}_auth_token"
 
     @property
     def is_expired(self: Self) -> bool:

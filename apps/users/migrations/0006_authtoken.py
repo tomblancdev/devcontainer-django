@@ -41,7 +41,9 @@ class Migration(migrations.Migration):
                 (
                     "expires_at",
                     models.DateTimeField(
-                        blank=True, null=True, verbose_name="expires at"
+                        blank=True,
+                        null=True,
+                        verbose_name="expires at",
                     ),
                 ),
                 (

@@ -40,7 +40,9 @@ class Migration(migrations.Migration):
                 (
                     "validated_at",
                     models.DateTimeField(
-                        blank=True, null=True, verbose_name="validated at"
+                        blank=True,
+                        null=True,
+                        verbose_name="validated at",
                     ),
                 ),
                 (

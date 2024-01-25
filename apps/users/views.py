@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any, Self
 
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
@@ -10,7 +10,6 @@ from rest_framework import status
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -29,6 +28,9 @@ from .serializers import (
     ResetPasswordRequestSerializer,
     ResetPasswordSerializer,
 )
+
+if TYPE_CHECKING:
+    from rest_framework.request import Request
 
 
 def send_mail_activation(
@@ -53,7 +55,7 @@ def send_mail_reset_password(email: str, next_url: str) -> None:
     """Send email reset password."""
     try:
         reset_password_token = UserResetPasswordToken.objects.create_token_for_email(
-            email
+            email,
         )
     except User.DoesNotExist:
         return
@@ -68,11 +70,12 @@ def send_mail_reset_password(email: str, next_url: str) -> None:
 
 
 class RegisterView(APIView):
+
     """Register view."""
 
     permission_classes = (AllowAny,)
 
-    def post(self, request: Request) -> Response:
+    def post(self: Self, request: Request) -> Response:
         """Handle HTTP POST request."""
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -86,14 +89,23 @@ class RegisterView(APIView):
 
 
 class LoginView(ObtainAuthToken):
+
+    """Login view."""
+
     serializer_class = AuthTokenSerializer
 
     permission_classes = (AllowAny,)
 
-    def post(self, request: Request, *args: Any, **kwargs: Any) -> Response:
+    def post(
+        self: Self,
+        request: Request,
+        *args: Any,  # noqa: ARG002, ANN401
+        **kwargs: Any,  # noqa: ARG002, ANN401
+    ) -> Response:
         """Handle HTTP POST request."""
         serializer = self.serializer_class(
-            data=request.data, context={"request": request}
+            data=request.data,
+            context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -101,11 +113,12 @@ class LoginView(ObtainAuthToken):
 
 
 class ChangePasswordView(APIView):
+
     """Change password view."""
 
     permission_classes = (IsAuthenticated,)
 
-    def post(self, request: Request) -> Response:
+    def post(self: Self, request: Request) -> Response:
         """Handle HTTP POST request."""
         user = request.user
         if not user:
@@ -131,9 +144,12 @@ class ChangePasswordView(APIView):
 
 
 class ActivateAccountView(APIView):
+
+    """Activate account view."""
+
     permission_classes = (AllowAny,)
 
-    def post(self, request: Request) -> Response:
+    def post(self: Self, request: Request) -> Response:
         """Handle HTTP POST request."""
         serializer = ActivateAccountSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -153,11 +169,12 @@ class ActivateAccountView(APIView):
 
 
 class RequestResetPasswordView(APIView):
+
     """Request reset password view."""
 
     permission_classes = (AllowAny,)
 
-    def post(self, request: Request) -> Response:
+    def post(self: Self, request: Request) -> Response:
         """Handle HTTP POST request."""
         serializer = ResetPasswordRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -172,9 +189,12 @@ class RequestResetPasswordView(APIView):
 
 
 class ResetPasswordView(APIView):
+
+    """Reset password view."""
+
     permission_classes = (AllowAny,)
 
-    def post(self, request: Request) -> Response:
+    def post(self: Self, request: Request) -> Response:
         """Handle HTTP POST request."""
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -198,9 +218,12 @@ class ResetPasswordView(APIView):
 
 
 class LogoutView(APIView):
+
+    """Logout view."""
+
     permission_classes = (IsAuthenticated,)
 
-    def post(self, request: Request) -> Response:
+    def post(self: Self, request: Request) -> Response:
         """Handle HTTP POST request."""
         request.auth.delete()
         if request.GET.get("everywhere"):

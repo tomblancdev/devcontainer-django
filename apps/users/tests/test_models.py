@@ -1,3 +1,5 @@
+# ruff: noqa: PT009 PT027
+"""Tests for users app models."""
 from __future__ import annotations
 
 from typing import Self
@@ -10,6 +12,7 @@ from users.tests.test_setup import UserSetupTestCase, UsingUser
 
 
 class TestUserModel(UserSetupTestCase):
+
     """Test user model methods and properties."""
 
     def test_user_str(self: Self) -> None:
@@ -38,16 +41,17 @@ class TestUserModel(UserSetupTestCase):
         """Test full_name property."""
         with UsingUser() as user:
             self.assertEqual(
-                user.get_full_name(), f"{user.first_name} {user.last_name}"
+                user.get_full_name(),
+                f"{user.first_name} {user.last_name}",
             )
 
     def test_anonymize(self: Self) -> None:
         """Test anonymize method."""
         with UsingUser() as user:
             user.anonymize()
-            self.assertEqual(user.username, None)
-            self.assertEqual(user.first_name, None)
-            self.assertEqual(user.last_name, None)
+            self.assertEqual(user.username, "")
+            self.assertEqual(user.first_name, "")
+            self.assertEqual(user.last_name, "")
             self.assertEqual(user.email, None)
             self.assertEqual(user.email_verified, False)
             self.assertFalse(hasattr(user, "token_email_validation"))
@@ -93,6 +97,7 @@ class TestUserModel(UserSetupTestCase):
 
 
 class TestUserEmailValidationToken(UserSetupTestCase):
+
     """Test user email validation token model methods and properties."""
 
     def test_email_validation_token_str(self: Self) -> None:
@@ -169,6 +174,7 @@ class TestUserEmailValidationToken(UserSetupTestCase):
 
 
 class TestUserResetPasswordToken(UserSetupTestCase):
+
     """Test user reset password token model methods and properties."""
 
     def test_reset_password_token_str(self: Self) -> None:
@@ -184,7 +190,8 @@ class TestUserResetPasswordToken(UserSetupTestCase):
         with UsingUser(with_reset_password_token=True) as user:
             first_reset_password_token = user.reset_password_token_set.first()
             if first_reset_password_token is None:
-                raise ValueError("No reset password token found")
+                msg = "No reset password token found"
+                raise ValueError(msg)
             self.assertFalse(first_reset_password_token.is_expired)
             first_reset_password_token.expires_at = timezone.now()
             first_reset_password_token.save()
@@ -195,7 +202,8 @@ class TestUserResetPasswordToken(UserSetupTestCase):
         with UsingUser(with_reset_password_token=True) as user:
             first_reset_password_token = user.reset_password_token_set.first()
             if first_reset_password_token is None:
-                raise ValueError("No reset password token found")
+                msg = "No reset password token found"
+                raise ValueError(msg)
             self.assertFalse(first_reset_password_token.is_used)
             first_reset_password_token.used_at = timezone.now()
             first_reset_password_token.save()
@@ -206,7 +214,8 @@ class TestUserResetPasswordToken(UserSetupTestCase):
         with UsingUser(with_reset_password_token=True) as user:
             first_reset_password_token = user.reset_password_token_set.first()
             if first_reset_password_token is None:
-                raise ValueError("No reset password token found")
+                msg = "No reset password token found"
+                raise ValueError(msg)
             self.assertFalse(first_reset_password_token.is_used)
             first_reset_password_token.use_token()
             first_reset_password_token.refresh_from_db()
@@ -217,7 +226,8 @@ class TestUserResetPasswordToken(UserSetupTestCase):
         with UsingUser(with_reset_password_token=True) as user:
             first_reset_password_token = user.reset_password_token_set.first()
             if first_reset_password_token is None:
-                raise ValueError("No reset password token found")
+                msg = "No reset password token found"
+                raise ValueError(msg)
             first_reset_password_token.use_token()
             first_reset_password_token.refresh_from_db()
             self.assertTrue(first_reset_password_token.is_used)
@@ -229,7 +239,8 @@ class TestUserResetPasswordToken(UserSetupTestCase):
         with UsingUser(with_reset_password_token=True) as user:
             first_reset_password_token = user.reset_password_token_set.first()
             if first_reset_password_token is None:
-                raise ValueError("No reset password token found")
+                msg = "No reset password token found"
+                raise ValueError(msg)
             first_reset_password_token.expires_at = timezone.now()
             first_reset_password_token.save()
             first_reset_password_token.refresh_from_db()
@@ -239,6 +250,7 @@ class TestUserResetPasswordToken(UserSetupTestCase):
 
 
 class TestUserRecoveryToken(UserSetupTestCase):
+
     """Test user recovery token model methods and properties."""
 
     def test_recovery_token_str(self: Self) -> None:
@@ -257,6 +269,7 @@ class TestUserRecoveryToken(UserSetupTestCase):
 
 
 class TestAuthToken(UserSetupTestCase):
+
     """Test auth token model methods and properties."""
 
     def test_auth_token_str(self: Self) -> None:
@@ -272,7 +285,8 @@ class TestAuthToken(UserSetupTestCase):
         with UsingUser(with_auth_token=True) as user:
             first_auth_token = user.auth_token_set.first()
             if first_auth_token is None:
-                raise ValueError("No auth token found")
+                msg = "No auth token found"
+                raise ValueError(msg)
             self.assertFalse(first_auth_token.is_expired)
             first_auth_token.expires_at = timezone.now()
             first_auth_token.save()

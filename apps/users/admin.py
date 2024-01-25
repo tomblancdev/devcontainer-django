@@ -14,11 +14,16 @@ from django.utils.translation import gettext_lazy as _
 from .models import User
 
 if TYPE_CHECKING:
-    pass
+    from django.db.models import QuerySet
+    from django.http import HttpRequest
 
 
 class UserCreationForm(forms.ModelForm):
-    """A form for creating new users. Includes all the required fields, plus a repeated password."""
+
+    """A form for creating new users.
+
+    Includes all the required fields, plus a repeated password.
+    """
 
     password1 = forms.CharField(label=_("Password"), widget=forms.PasswordInput)
     password2 = forms.CharField(
@@ -28,6 +33,7 @@ class UserCreationForm(forms.ModelForm):
     )
 
     class Meta:
+
         """Meta class."""
 
         model = User
@@ -43,7 +49,10 @@ class UserCreationForm(forms.ModelForm):
 
         return password2
 
-    def save(self: Self, commit: bool = True) -> User:
+    def save(
+        self: Self,
+        commit: bool = True,  # noqa: FBT001, FBT002
+    ) -> User:
         """Save the provided password in hashed format."""
         user = super().save(commit=False)
         user.set_password(self.cleaned_data["password1"])
@@ -55,11 +64,17 @@ class UserCreationForm(forms.ModelForm):
 
 
 class UserChangeForm(forms.ModelForm):
-    """A form for updating users. Includes all the fields on the user, but replaces the password field with admin's password hash display field."""
+
+    """A form for updating users.
+
+    Includes all the fields on the user.
+    Removes the password field, and adds a password hash field.
+    """
 
     password = ReadOnlyPasswordHashField()
 
     class Meta:
+
         """Meta class."""
 
         model = User
@@ -74,13 +89,12 @@ class UserChangeForm(forms.ModelForm):
         )
 
     def clean_password(self: Self) -> str:
-        """Regardless of what the user provides, return the initial value.
-        This is done here, rather than on the field, because the field does not have access to the initial value.
-        """
+        """Regardless of what the user provides, return the initial value."""
         return self.initial["password"]
 
 
 class UserAdmin(BaseUserAdmin):
+
     """User admin."""
 
     form = UserChangeForm
@@ -107,7 +121,7 @@ class UserAdmin(BaseUserAdmin):
                     "last_name",
                     "password",
                     "email_verified",
-                )
+                ),
             },
         ),
         (
@@ -120,7 +134,7 @@ class UserAdmin(BaseUserAdmin):
                     "is_superuser",
                     "groups",
                     "user_permissions",
-                )
+                ),
             },
         ),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
@@ -150,19 +164,22 @@ class UserAdmin(BaseUserAdmin):
     readonly_fields = ("last_login", "date_joined", "email_verified", "recovery_token")
 
     # creating field to get recovery link if exists
-    def recovery_token(self, obj):
+    def recovery_token(self: Self, obj: User) -> str | None:
+        """Get recovery token if exists."""
         if hasattr(obj, "recovery_token"):
-            return obj.recovery_token
+            return str(obj.recovery_token)
         return None
 
     # add extra action to anonymize user
-    def anonymize_user(self, request, queryset):
+    @admin.action(description=_("Anonymize selected users"))
+    def anonymize_user(
+        self: Self,
+        request: HttpRequest,  # noqa: ARG002
+        queryset: QuerySet[User],
+    ) -> None:
+        """Anonymize selected users."""
         for user in queryset:
             user.anonymize()
-
-    anonymize_user.short_description = _("Anonymize selected users")  # type: ignore
-
-    actions = (anonymize_user,)
 
 
 admin.site.register(User, UserAdmin)

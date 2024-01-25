@@ -53,7 +53,10 @@ plugins = ["mypy_django_plugin.main", "mypy_drf_plugin.main"]
 check_untyped_defs = true
 
 [tool.ruff]
-
+select = ["ALL"]
+ignore = ["D211", "D213", "COM812", "ISC001"]
+fix = true
+exclude = ["migrations", "manage.py"]
 
 [tool.pyright]
 venvPath = ".venv"
