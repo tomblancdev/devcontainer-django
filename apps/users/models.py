@@ -19,6 +19,12 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_stubs_ext.db.models import TypedModelMeta
 
+from .settings import (
+    AUTH_TOKEN_EXPIRATION_TIME,
+    EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME,
+    RESET_PASSWORD_TOKEN_EXPIRATION_TIME,
+)
+
 
 class SendUserEmailOptions(TypedDict, total=False):
 
@@ -327,7 +333,9 @@ class UserEmailValidationToken(models.Model):
 
     expires_at = models.DateTimeField(
         verbose_name=_("expires at"),
-        default=timezone.now() + timedelta(minutes=30),  #  TODO make this configurable
+        default=(
+            timezone.now() + timedelta(seconds=EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME)
+        ),
     )
 
     objects: ClassVar[
@@ -363,8 +371,8 @@ class UserEmailValidationToken(models.Model):
         self.created_at = timezone.now()
         self.validated_at = None
         self.expires_at = timezone.now() + timedelta(
-            minutes=30,
-        )  # TODO: make this configurable
+            seconds=EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME
+        )
         self.save()
 
     def validate(self: Self) -> None:
@@ -426,7 +434,7 @@ class UserResetPasswordToken(models.Model):
 
     expires_at = models.DateTimeField(
         verbose_name=_("expires at"),
-        default=timezone.now() + timedelta(minutes=30),  # TODO: make this configurable
+        default=timezone.now() + timedelta(RESET_PASSWORD_TOKEN_EXPIRATION_TIME),
     )
 
     used_at = models.DateTimeField(
@@ -549,6 +557,7 @@ class AuthToken(models.Model):
         verbose_name=_("expires at"),
         null=True,
         blank=True,
+        default=timezone.now() + timedelta(seconds=AUTH_TOKEN_EXPIRATION_TIME),
     )
 
     objects: ClassVar[models.Manager[AuthToken]] = models.Manager()
