@@ -13,9 +13,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .exceptions import InvalidToken
 from .models import (
     AuthToken,
-    TokenError,
     User,
     UserEmailValidationToken,
     UserResetPasswordToken,
@@ -157,7 +157,7 @@ class ActivateAccountView(APIView):
         token = data.get("token")
         try:
             UserEmailValidationToken.objects.validate_token(token)
-        except TokenError as error:
+        except InvalidToken as error:
             return Response(
                 {"error": str(error)},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -202,7 +202,7 @@ class ResetPasswordView(APIView):
         token = data.get("token")
         try:
             reset_password_token = UserResetPasswordToken.objects.use_token(token)
-        except TokenError as error:
+        except InvalidToken as error:
             return Response(
                 {"error": str(error)},
                 status=status.HTTP_400_BAD_REQUEST,

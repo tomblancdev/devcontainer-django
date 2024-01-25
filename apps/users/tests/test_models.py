@@ -7,7 +7,7 @@ from typing import Self
 from django.core import mail
 from django.utils import timezone
 
-from users.models import TokenError
+from users.exceptions import InvalidToken
 from users.tests.test_setup import UserSetupTestCase, UsingUser
 
 
@@ -159,7 +159,7 @@ class TestUserEmailValidationToken(UserSetupTestCase):
             user.token_email_validation.validate()
             user.token_email_validation.refresh_from_db()
             self.assertIsNotNone(user.token_email_validation.validated_at)
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 user.token_email_validation.validate()
 
     def test_validate_expired_token(self: Self) -> None:
@@ -169,7 +169,7 @@ class TestUserEmailValidationToken(UserSetupTestCase):
             user.token_email_validation.save()
             user.token_email_validation.refresh_from_db()
             self.assertTrue(user.token_email_validation.is_expired)
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 user.token_email_validation.validate()
 
 
@@ -231,7 +231,7 @@ class TestUserResetPasswordToken(UserSetupTestCase):
             first_reset_password_token.use_token()
             first_reset_password_token.refresh_from_db()
             self.assertTrue(first_reset_password_token.is_used)
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 first_reset_password_token.use_token()
 
     def test_use_token_expired(self: Self) -> None:
@@ -245,7 +245,7 @@ class TestUserResetPasswordToken(UserSetupTestCase):
             first_reset_password_token.save()
             first_reset_password_token.refresh_from_db()
             self.assertTrue(first_reset_password_token.is_expired)
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 first_reset_password_token.use_token()
 
 

@@ -214,7 +214,7 @@ class TestRegisterView(APISetupTestCase):
         json_response = response.json()
         self.assertEqual(
             json_response["password_validation"][0],
-            "Passwords must match.",
+            "Passwords do not match.",
         )
 
 
@@ -248,7 +248,7 @@ class TestLoginView(APISetupTestCase):
             response = self.client.post(self.endpoint, data=data, format="json")
             self.assertEqual(response.status_code, 400)
             json_response = response.json()
-            self.assertEqual(json_response["error"][0], "Email is not verified.")
+            self.assertEqual(json_response["email"][0], "Email not verified.")
 
     def test_post_with_invalid_email(self: Self) -> None:
         """Test HTTP POST request with invalid email."""
@@ -258,9 +258,9 @@ class TestLoginView(APISetupTestCase):
             user.save()
             data = {"email": "invalid_email", "password": password}
             response = self.client.post(self.endpoint, data=data, format="json")
-            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.status_code, 401)
             json_response = response.json()
-            self.assertEqual(json_response["email"][0], "Enter a valid email address.")
+            self.assertEqual(json_response["detail"], "Invalid email or password.")
 
     def test_post_with_invalid_user_email(self: Self) -> None:
         """Test HTTP POST request with invalid user email."""
@@ -270,21 +270,21 @@ class TestLoginView(APISetupTestCase):
             user.save()
             data = {"email": "invalid_email@test.com", "password": password}
             response = self.client.post(self.endpoint, data=data, format="json")
-            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.status_code, 401)
             json_response = response.json()
-            self.assertEqual(json_response["error"][0], "Invalid username or password.")
+            self.assertEqual(json_response["detail"], "Invalid email or password.")
 
     def test_post_with_invalid_password(self: Self) -> None:
         """Test HTTP POST request with invalid password."""
-        with UsingUser() as user:
+        with UsingUser(email_validated=True) as user:
             password = uuid4().hex
             user.set_password(password)
             user.save()
             data = {"email": user.email, "password": "invalid_password"}
             response = self.client.post(self.endpoint, data=data, format="json")
-            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.status_code, 401)
             json_response = response.json()
-            self.assertEqual(json_response["error"][0], "Invalid username or password.")
+            self.assertEqual(json_response["detail"], "Invalid email or password.")
 
 
 class TestChangePasswordView(APISetupTestCase):
@@ -373,7 +373,7 @@ class TestChangePasswordView(APISetupTestCase):
         json_response = response.json()
         self.assertEqual(
             json_response["new_password_validation"][0],
-            "Passwords must match.",
+            "Passwords do not match.",
         )
 
     def test_post_with_invalid_new_password(self: Self) -> None:
@@ -538,7 +538,7 @@ class TestRequestResetPasswordView(APISetupTestCase):
             response = self.client.post(self.endpoint, data=data, format="json")
             self.assertEqual(response.status_code, 400)
             json_response = response.json()
-            self.assertEqual(json_response["email"][0], "Email is not verified.")
+            self.assertEqual(json_response["email"][0], "Email not verified.")
 
 
 class TestResetPasswordView(APISetupTestCase):
@@ -609,7 +609,7 @@ class TestResetPasswordView(APISetupTestCase):
             response = self.client.post(self.endpoint, data=data, format="json")
             self.assertEqual(response.status_code, 400)
             json_response = response.json()
-            self.assertEqual(json_response["error"], "Token does not exist.")
+            self.assertEqual(json_response["error"], "Invalid token.")
 
     def test_post_with_expired_token(self: Self) -> None:
         """Test HTTP POST request with expired token."""
@@ -629,7 +629,7 @@ class TestResetPasswordView(APISetupTestCase):
             response = self.client.post(self.endpoint, data=data, format="json")
             self.assertEqual(response.status_code, 400)
             json_response = response.json()
-            self.assertEqual(json_response["error"], "Token is expired.")
+            self.assertEqual(json_response["error"], "Invalid token.")
 
     def test_post_with_different_passwords(self: Self) -> None:
         """Test HTTP POST request with different passwords."""
@@ -649,7 +649,7 @@ class TestResetPasswordView(APISetupTestCase):
             json_response = response.json()
             self.assertEqual(
                 json_response["password_validation"][0],
-                "Passwords must match.",
+                "Passwords do not match.",
             )
 
     def test_post_with_invalid_new_password(self: Self) -> None:

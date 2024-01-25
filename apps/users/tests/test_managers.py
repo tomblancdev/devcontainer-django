@@ -7,8 +7,8 @@ from typing import Self
 
 from django.utils import timezone
 
+from users.exceptions import InvalidToken, UserAlreadyExists
 from users.models import (
-    TokenError,
     User,
     UserEmailValidationToken,
     UserResetPasswordToken,
@@ -73,7 +73,7 @@ class TestUserManager(UserSetupTestCase):
                 msg = "user email must be set"
                 raise ValueError(msg)
             user_infos.email = user.email
-            with self.assertRaises(ValueError):
+            with self.assertRaises(UserAlreadyExists):
                 User.objects.create_user(**user_infos.__dict__)
 
     def test_create_user_with_existing_non_unique_values(self: Self) -> None:
@@ -156,7 +156,7 @@ class TestUserEmailValidationTokenManager(UserSetupTestCase):
         """Test create_token method with existing token."""
         with UsingUser(with_email_validation_token=True) as user:
             user.token_email_validation.validate()
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 UserEmailValidationToken.objects.create_token_for_user(user)
 
     def test_validate_token(self: Self) -> None:
@@ -169,7 +169,7 @@ class TestUserEmailValidationTokenManager(UserSetupTestCase):
 
     def test_validate_token_with_invalid_token(self: Self) -> None:
         """Test validate_token method with invalid token."""
-        with self.assertRaises(TokenError):
+        with self.assertRaises(InvalidToken):
             UserEmailValidationToken.objects.validate_token("invalid_token")
 
     def test_validate_token_with_expired_token(self: Self) -> None:
@@ -177,7 +177,7 @@ class TestUserEmailValidationTokenManager(UserSetupTestCase):
         with UsingUser(with_email_validation_token=True) as user:
             user.token_email_validation.expires_at = timezone.now()
             user.token_email_validation.save()
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 UserEmailValidationToken.objects.validate_token(
                     user.token_email_validation.token,
                 )
@@ -186,7 +186,7 @@ class TestUserEmailValidationTokenManager(UserSetupTestCase):
         """Test validate_token method with already validated token."""
         with UsingUser(with_email_validation_token=True) as user:
             user.token_email_validation.validate()
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 UserEmailValidationToken.objects.validate_token(
                     user.token_email_validation.token,
                 )
@@ -206,7 +206,7 @@ class TestUserEmailValidationTokenManager(UserSetupTestCase):
 
     def test_regenerate_unexisting_token(self: Self) -> None:
         """Test regenerate_token method with unexisting token."""
-        with UsingUser() as user, self.assertRaises(TokenError):
+        with UsingUser() as user, self.assertRaises(InvalidToken):
             UserEmailValidationToken.objects.regenerate_token_for_user(user)
 
 
@@ -246,7 +246,7 @@ class TestUserResetPasswordTokenManager(UserSetupTestCase):
 
     def test_use_token_with_invalid_token(self: Self) -> None:
         """Test use_token method with invalid token."""
-        with self.assertRaises(TokenError):
+        with self.assertRaises(InvalidToken):
             UserResetPasswordToken.objects.use_token("invalid_token")
 
     def test_use_token_with_expired_token(self: Self) -> None:
@@ -258,7 +258,7 @@ class TestUserResetPasswordTokenManager(UserSetupTestCase):
                 raise ValueError(msg)
             token.expires_at = timezone.now()
             token.save()
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 UserResetPasswordToken.objects.use_token(token.token)
 
     def test_use_token_with_already_used_token(self: Self) -> None:
@@ -270,5 +270,5 @@ class TestUserResetPasswordTokenManager(UserSetupTestCase):
                 raise ValueError(msg)
             token.used_at = timezone.now()
             token.save()
-            with self.assertRaises(TokenError):
+            with self.assertRaises(InvalidToken):
                 UserResetPasswordToken.objects.use_token(token.token)

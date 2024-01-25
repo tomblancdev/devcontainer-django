@@ -19,6 +19,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_stubs_ext.db.models import TypedModelMeta
 
+from .exceptions import InvalidToken, UserAlreadyExists
 from .settings import (
     AUTH_TOKEN_EXPIRATION_TIME,
     EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME,
@@ -70,7 +71,7 @@ class UserManager(BaseUserManager["User"]):
 
         # check if user already exists
         if self.filter(email=email).exists():
-            raise ValueError(_("User already exists."))
+            raise UserAlreadyExists
 
         user = self.model(
             email=self.normalize_email(email),
@@ -248,11 +249,6 @@ class User(AbstractBaseUser, PermissionsMixin):
             self.auth_token_set.all().delete()
 
 
-class TokenError(Exception):
-
-    """Base token error."""
-
-
 class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]):
 
     """User token email validation manager."""
@@ -265,7 +261,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
         ).first()
         if token_email_validation:
             if token_email_validation.is_validated:
-                raise TokenError(_("Token is already validated."))
+                raise InvalidToken(_("Token is already validated."))
             return token_email_validation
 
         # create token
@@ -276,7 +272,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
         # check if token exists
         token_email_validation = self.filter(token=token).first()
         if not token_email_validation:
-            raise TokenError(_("Invalid token."))
+            raise InvalidToken
 
         # validate token
         token_email_validation.validate()
@@ -287,10 +283,10 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
         """Unregister the user if the token is not validated."""
         token_email_validation = self.filter(token=token).first()
         if token_email_validation is None:
-            raise ValueError(_("Invalid token."))
+            raise InvalidToken
 
         if token_email_validation.is_validated:
-            raise ValueError(_("Token is already validated."))
+            raise InvalidToken
 
         token_email_validation.user.delete()
 
@@ -298,7 +294,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
         """Regenerate the token."""
         token_email_validation = self.filter(user=user).first()
         if token_email_validation is None:
-            raise TokenError(_("Token does not exist."))
+            raise InvalidToken
         token_email_validation.regenerate_token()
 
 
@@ -388,10 +384,10 @@ class UserEmailValidationToken(models.Model):
         """Validate the token."""
         # if token is already validated, raise error
         if self.is_validated:
-            raise TokenError(_("Token is already validated."))
+            raise InvalidToken(_("Token is already validated."))
         # if token is expired, raise error
         if self.is_expired:
-            raise TokenError(_("Token is expired."))
+            raise InvalidToken(_("Token is expired."))
         self.validated_at = timezone.now()
         self.save()
 
@@ -413,7 +409,7 @@ class UserResetPasswordTokenManager(models.Manager["UserResetPasswordToken"]):
         # check if token exists
         reset_password_token = self.filter(token=token).first()
         if not reset_password_token:
-            raise TokenError(_("Token does not exist."))
+            raise InvalidToken
         reset_password_token.use_token()
         return reset_password_token
 
@@ -484,9 +480,9 @@ class UserResetPasswordToken(models.Model):
     def use_token(self: Self) -> None:
         """Use the token."""
         if self.is_used:
-            raise TokenError(_("Token is already used."))
+            raise InvalidToken
         if self.is_expired:
-            raise TokenError(_("Token is expired."))
+            raise InvalidToken
         self.used_at = timezone.now()
         self.save()
 

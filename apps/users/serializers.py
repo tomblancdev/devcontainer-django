@@ -5,10 +5,19 @@ from __future__ import annotations
 from typing import Any, ClassVar, Self
 
 from django.contrib.auth import authenticate, password_validation
-from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from apps.users.exceptions import (
+    InvalidEmailOrPassword,
+    PasswordsDoNotMatch,
+)
+
 from .models import AuthToken, User
+from .validators import (
+    validate_email_is_verified,
+    validate_mail_login,
+    validate_user_does_not_exist,
+)
 
 
 class RegisterSerializer(serializers.ModelSerializer[User]):
@@ -26,7 +35,9 @@ class RegisterSerializer(serializers.ModelSerializer[User]):
     )
 
     next = serializers.URLField(write_only=True)
-    email = serializers.EmailField(write_only=True)
+    email = serializers.EmailField(
+        write_only=True, validators=[validate_user_does_not_exist]
+    )
 
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
@@ -54,19 +65,14 @@ class RegisterSerializer(serializers.ModelSerializer[User]):
             "username": {"write_only": True},
         }
 
-    def validate(
+    def validate_password_validation(
         self: Self,
-        data: Any,  # noqa: ANN401
-    ) -> Any:  # noqa: ANN401
-        """Validate that user does not exist and passwords match."""
-        data = super().validate(data)
-        if User.objects.filter(email=data["email"]).exists():
-            raise serializers.ValidationError({"email": _("User already exists.")})
-        if data["password"] != data["password_validation"]:
-            raise serializers.ValidationError(
-                {"password_validation": _("Passwords must match.")},
-            )
-        return data
+        value: str,
+    ) -> str:
+        """Validate that passwords match."""
+        password = self.get_initial().get("password")
+        if password != value:
+            raise PasswordsDoNotMatch
 
     def create(
         self: Self,
@@ -112,7 +118,12 @@ class AuthTokenSerializer(serializers.ModelSerializer[AuthToken]):
 
     """Serializer for auth token."""
 
-    email = serializers.EmailField(write_only=True)
+    email = serializers.EmailField(
+        write_only=True,
+        validators=[
+            validate_mail_login,
+        ],
+    )
     password = serializers.CharField(
         style={"input_type": "password"},
         write_only=True,
@@ -138,12 +149,8 @@ class AuthTokenSerializer(serializers.ModelSerializer[AuthToken]):
             email=data["email"],
             password=data["password"],
         )
-        if not user or not user.is_active:
-            raise serializers.ValidationError(
-                {"error": _("Invalid username or password.")},
-            )
-        if isinstance(user, User) and not user.email_verified:
-            raise serializers.ValidationError({"error": _("Email is not verified.")})
+        if not user:
+            raise InvalidEmailOrPassword
         data["user"] = user
         return data
 
@@ -177,36 +184,24 @@ class PasswordChangeSerializer(serializers.Serializer):
         write_only=True,
     )
 
-    def validate(
+    def validate_new_password_validation(
         self: Self,
-        data: Any,  # noqa: ANN401
-    ) -> Any:  # noqa: ANN401
+        value: str,
+    ) -> str:
         """Validate that passwords match."""
-        data = super().validate(data)
-        if data["new_password"] != data["new_password_validation"]:
-            raise serializers.ValidationError(
-                {"new_password_validation": _("Passwords must match.")},
-            )
-        return data
+        new_password = self.get_initial().get("new_password")
+        if new_password != value:
+            raise PasswordsDoNotMatch
 
 
 class ResetPasswordRequestSerializer(serializers.Serializer):
 
     """Serializer for reset password token."""
 
-    email = serializers.EmailField(write_only=True)
+    email = serializers.EmailField(
+        write_only=True, validators=[validate_email_is_verified]
+    )
     next = serializers.URLField(required=False, write_only=True)
-
-    def validate(
-        self: Self,
-        data: Any,  # noqa: ANN401
-    ) -> Any:  # noqa: ANN401
-        """Validate that user is validated."""
-        data = super().validate(data)
-        user = User.objects.filter(email=data["email"]).first()
-        if user and not user.email_verified:
-            raise serializers.ValidationError({"email": _("Email is not verified.")})
-        return data
 
 
 class ResetPasswordSerializer(serializers.Serializer):
@@ -225,17 +220,14 @@ class ResetPasswordSerializer(serializers.Serializer):
         write_only=True,
     )
 
-    def validate(
+    def validate_password_validation(
         self: Self,
-        data: Any,  # noqa: ANN401
-    ) -> Any:  # noqa: ANN401
+        value: str,
+    ) -> str:
         """Validate that passwords match."""
-        data = super().validate(data)
-        if data["password"] != data["password_validation"]:
-            raise serializers.ValidationError(
-                {"password_validation": _("Passwords must match.")},
-            )
-        return data
+        password = self.get_initial().get("password")
+        if password != value:
+            raise PasswordsDoNotMatch
 
 
 class ActivateAccountSerializer(serializers.Serializer):

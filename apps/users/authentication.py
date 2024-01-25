@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Self
 
 from django.utils import timezone
-from django.utils.translation import gettext_lazy as _
-from rest_framework import authentication, exceptions
+from rest_framework import authentication
 
+from .exceptions import InvalidToken, UserIsNotActive
 from .models import AuthToken, User
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ class AuthTokenAuthentication(authentication.TokenAuthentication):
         try:
             token = self.get_queryset().get(key=key)
         except self.model.DoesNotExist:
-            raise exceptions.AuthenticationFailed(_("Invalid Credentials.")) from None
+            raise InvalidToken from None
         if not token.user.is_active:
-            raise exceptions.AuthenticationFailed(_("User inactive or deleted."))
+            raise UserIsNotActive
         return (token.user, token)
