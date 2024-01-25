@@ -59,6 +59,7 @@ class UsingUser(object):
         is_staff: bool = False,
         is_admin: bool = False,
         is_superuser: bool = False,
+        email_validated: bool = False,
         with_email_validation_token: bool = False,
         with_reset_password_token: bool = False,
         with_auth_token: bool = False,
@@ -69,33 +70,17 @@ class UsingUser(object):
         self.is_staff = is_staff
         self.is_admin = is_admin
         self.is_superuser = is_superuser
-        self.with_email_validation_token = with_email_validation_token
+        self.email_validated = email_validated
+        self.with_email_validation_token = (
+            with_email_validation_token or email_validated
+        )
         self.with_reset_password_token = with_reset_password_token
         self.with_auth_token = with_auth_token
         self.with_recovery_token = with_recovery_token
 
     def __enter__(self: Self) -> User:
         """Enter."""
-        self.user = self.generate_user(
-            user_infos=self.user_infos,
-            is_staff=self.is_staff,
-            is_admin=self.is_admin,
-            is_superuser=self.is_superuser,
-        )
-        if self.with_email_validation_token:
-            self.email_token = UserEmailValidationToken.objects.create_token_for_user(
-                self.user
-            )
-        if self.with_reset_password_token and self.user.email:
-            self.reset_password_token = (
-                UserResetPasswordToken.objects.create_token_for_email(self.user.email)
-            )
-        if self.with_auth_token:
-            self.auth_token = AuthToken.objects.create(user=self.user)
-        if self.with_recovery_token:
-            self.recovery_token = UserRecoveryToken.objects.create_token_for_user(
-                self.user
-            )
+        self.setUp()
 
         return self.user
 
@@ -123,6 +108,33 @@ class UsingUser(object):
         user.is_admin = is_admin
 
         return user
+
+    def setUp(self):
+        """Set up."""
+        self.user = self.generate_user(
+            user_infos=self.user_infos,
+            is_staff=self.is_staff,
+            is_admin=self.is_admin,
+            is_superuser=self.is_superuser,
+        )
+        if self.with_email_validation_token:
+            self.email_token = UserEmailValidationToken.objects.create_token_for_user(
+                self.user
+            )
+            if self.email_validated:
+                self.email_token.validate()
+        if self.with_reset_password_token and self.user.email:
+            self.reset_password_token = (
+                UserResetPasswordToken.objects.create_token_for_email(self.user.email)
+            )
+        if self.with_auth_token:
+            self.auth_token = AuthToken.objects.create(user=self.user)
+        if self.with_recovery_token:
+            self.recovery_token = UserRecoveryToken.objects.create_token_for_user(
+                self.user
+            )
+
+        return self.user
 
 
 class UserSetupTestCase(TestCase):

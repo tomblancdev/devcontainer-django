@@ -267,7 +267,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
         # check if token exists
         token_email_validation = self.filter(token=token).first()
         if not token_email_validation:
-            raise TokenError(_("Token does not exist."))
+            raise TokenError(_("Invalid token."))
 
         # validate token
         token_email_validation.validate()
@@ -278,7 +278,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
         """Unregister the user if the token is not validated."""
         token_email_validation = self.filter(token=token).first()
         if token_email_validation is None:
-            raise ValueError(_("Token does not exist."))
+            raise ValueError(_("Invalid token."))
 
         if token_email_validation.is_validated:
             raise ValueError(_("Token is already validated."))
@@ -384,13 +384,14 @@ class UserResetPasswordTokenManager(models.Manager["UserResetPasswordToken"]):
             raise User.DoesNotExist(_("User does not exist."))
         return self.create(user=user)
 
-    def use_token(self, token: str) -> None:
+    def use_token(self, token: str) -> UserResetPasswordToken:
         """Use the token."""
         # check if token exists
         reset_password_token = self.filter(token=token).first()
         if not reset_password_token:
             raise TokenError(_("Token does not exist."))
         reset_password_token.use_token()
+        return reset_password_token
 
 
 class UserResetPasswordToken(models.Model):

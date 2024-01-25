@@ -8,11 +8,11 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from rest_framework import status
 from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.viewsets import ModelViewSet
 
 from .models import (
     AuthToken,
@@ -28,7 +28,6 @@ from .serializers import (
     RegisterSerializer,
     ResetPasswordRequestSerializer,
     ResetPasswordSerializer,
-    UserSerializer,
 )
 
 
@@ -78,22 +77,12 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
-        if serializer.is_valid():
-            user = serializer.save()
-            send_mail_activation(user, data.get("next"))
-            return Response(
-                serializer.data,
-                status=status.HTTP_201_CREATED,
-            )
+        user = serializer.save()
+        send_mail_activation(user, data.get("next"))
         return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST,
+            status=status.HTTP_201_CREATED,
+            data={"success": _("User created successfully.")},
         )
-
-    def get(self, request: Request) -> Response:
-        """Handle HTTP GET request. Return Form for registration based on serializer."""
-        serializer = RegisterSerializer()
-        return Response(serializer.data)
 
 
 class LoginView(ObtainAuthToken):
@@ -120,24 +109,16 @@ class ChangePasswordView(APIView):
         """Handle HTTP POST request."""
         user = request.user
         if not user:
-            return Response(
-                {"error": _("User not found.")},
-                status=status.HTTP_404_NOT_FOUND,
+            raise ValidationError(
+                {"error": _("User does not exist.")},
             )
         serializer = PasswordChangeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         new_password = data.get("new_password")
-        if not new_password:
-            return Response(
-                {"error": _("New password is required.")},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        # try to login with old password
-        if not user.check_password(data.get("password")):
-            return Response(
-                {"error": _("Invalid password.")},
-                status=status.HTTP_400_BAD_REQUEST,
+        if not user.check_password(data.get("current_password")):
+            raise ValidationError(
+                {"current_password": [_("Invalid current password.")]},
             )
         user.set_password(new_password)
         user.save()
@@ -185,7 +166,7 @@ class RequestResetPasswordView(APIView):
         next_url = data.get("next")
         send_mail_reset_password(email, next_url)
         return Response(
-            {"success": _("Reset password link sent successfully.")},
+            {"success": _("Reset password email sent successfully.")},
             status=status.HTTP_200_OK,
         )
 
@@ -225,40 +206,10 @@ class LogoutView(APIView):
         if request.GET.get("everywhere"):
             AuthToken.objects.filter(user=request.user).delete()
             return Response(
-                {"success": _("Logout everywhere successfully.")},
+                {"success": _("Logged out everywhere successfully.")},
                 status=status.HTTP_200_OK,
             )
         return Response(
-            {"success": _("Logout successfully.")},
+            {"success": _("Logged out successfully.")},
             status=status.HTTP_200_OK,
         )
-
-
-class MeView(ModelViewSet):
-    model = User
-    permission_classes = (IsAuthenticated,)
-    serializer_class = UserSerializer
-
-    def get_object(self) -> User:
-        """Get object."""
-        return User.objects.get(pk=self.request.user.pk)
-
-    def get_queryset(self):
-        return User.objects.filter(id=self.request.user.id)
-
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = UserSerializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
-
-    def partial_update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = UserSerializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
-
-    def list(self, request, *args, **kwargs):
-        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)

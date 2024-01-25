@@ -12,6 +12,11 @@ from .models import AuthToken, User
 class RegisterSerializer(serializers.ModelSerializer[User]):
     """Serializer for user registration."""
 
+    password = serializers.CharField(
+        style={"input_type": "password"},
+        write_only=True,
+        validators=[password_validation.validate_password],
+    )
     password_validation = serializers.CharField(
         style={"input_type": "password"},
         write_only=True,
@@ -19,10 +24,7 @@ class RegisterSerializer(serializers.ModelSerializer[User]):
 
     next = serializers.URLField(write_only=True)
     email = serializers.EmailField(write_only=True)
-    password = serializers.CharField(
-        style={"input_type": "password"},
-        write_only=True,
-    )
+
     first_name = serializers.CharField(write_only=True)
     last_name = serializers.CharField(write_only=True)
     username = serializers.CharField(write_only=True)
@@ -52,14 +54,11 @@ class RegisterSerializer(serializers.ModelSerializer[User]):
         """Validate that user does not exist and passwords match."""
         data = super().validate(data)
         if User.objects.filter(email=data["email"]).exists():
-            raise serializers.ValidationError(_("User already exists."))
+            raise serializers.ValidationError({"email": _("User already exists.")})
         if data["password"] != data["password_validation"]:
-            raise serializers.ValidationError(_("Passwords must match."))
-        # check that password is strong enough
-        try:
-            password_validation.validate_password(data["password"])
-        except serializers.ValidationError as error:
-            raise serializers.ValidationError({"password": f"{error}"})
+            raise serializers.ValidationError(
+                {"password_validation": _("Passwords must match.")}
+            )
         return data
 
     def create(self, validated_data):
@@ -107,16 +106,13 @@ class AuthTokenSerializer(serializers.ModelSerializer[AuthToken]):
         write_only=True,
     )
 
-    user = UserSerializer(read_only=True)
-
     class Meta:
         """Meta class for auth token serializer."""
 
         model = AuthToken
-        fields = ("key", "user", "email", "password", "expires_at")
+        fields = ("key", "email", "password", "expires_at")
         extra_kwargs = {
             "key": {"read_only": True},
-            "user": {"read_only": True},
         }
 
     def validate(self, data: Any) -> Any:
@@ -127,9 +123,11 @@ class AuthTokenSerializer(serializers.ModelSerializer[AuthToken]):
             password=data["password"],
         )
         if not user or not user.is_active:
-            raise serializers.ValidationError(_("Invalid credentials."))
+            raise serializers.ValidationError(
+                {"error": _("Invalid username or password.")}
+            )
         if isinstance(user, User) and not user.email_verified:
-            raise serializers.ValidationError(_("Email is not verified."))
+            raise serializers.ValidationError({"error": _("Email is not verified.")})
         data["user"] = user
         return data
 
@@ -144,13 +142,14 @@ class AuthTokenSerializer(serializers.ModelSerializer[AuthToken]):
 
 
 class PasswordChangeSerializer(serializers.Serializer):
-    password = serializers.CharField(
+    current_password = serializers.CharField(
         style={"input_type": "password"},
         write_only=True,
     )
     new_password = serializers.CharField(
         style={"input_type": "password"},
         write_only=True,
+        validators=[password_validation.validate_password],
     )
     new_password_validation = serializers.CharField(
         style={"input_type": "password"},
@@ -161,12 +160,9 @@ class PasswordChangeSerializer(serializers.Serializer):
         """Validate that passwords match."""
         data = super().validate(data)
         if data["new_password"] != data["new_password_validation"]:
-            raise serializers.ValidationError(_("Passwords must match."))
-        # check that password is strong enough
-        try:
-            password_validation.validate_password(data["new_password"])
-        except serializers.ValidationError as error:
-            raise serializers.ValidationError({"new_password": f"{error}"})
+            raise serializers.ValidationError(
+                {"new_password_validation": _("Passwords must match.")}
+            )
         return data
 
 
@@ -175,6 +171,14 @@ class ResetPasswordRequestSerializer(serializers.Serializer):
 
     email = serializers.EmailField(write_only=True)
     next = serializers.URLField(required=False, write_only=True)
+
+    def validate(self, data: Any) -> Any:
+        """Validate that user is validated."""
+        data = super().validate(data)
+        user = User.objects.filter(email=data["email"]).first()
+        if user and not user.email_verified:
+            raise serializers.ValidationError({"email": _("Email is not verified.")})
+        return data
 
 
 class ResetPasswordSerializer(serializers.Serializer):
@@ -185,6 +189,7 @@ class ResetPasswordSerializer(serializers.Serializer):
     password = serializers.CharField(
         style={"input_type": "password"},
         write_only=True,
+        validators=[password_validation.validate_password],
     )
     password_validation = serializers.CharField(
         style={"input_type": "password"},
@@ -195,12 +200,9 @@ class ResetPasswordSerializer(serializers.Serializer):
         """Validate that passwords match."""
         data = super().validate(data)
         if data["password"] != data["password_validation"]:
-            raise serializers.ValidationError(_("Passwords must match."))
-        # check that password is strong enough
-        try:
-            password_validation.validate_password(data["password"])
-        except serializers.ValidationError as error:
-            raise serializers.ValidationError({"password": f"{error}"})
+            raise serializers.ValidationError(
+                {"password_validation": _("Passwords must match.")}
+            )
         return data
 
 
