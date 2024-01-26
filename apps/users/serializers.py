@@ -105,12 +105,14 @@ class UserSerializer(serializers.ModelSerializer[User]):
             "username",
             "is_active",
             "email_verified",
+            "date_joined",
         )
         extra_kwargs: ClassVar[dict[str, dict[str, bool]]] = {
             "id": {"read_only": True},
             "email": {"read_only": True},
             "is_active": {"read_only": True},
             "email_verified": {"read_only": True},
+            "date_joined": {"read_only": True},
         }
 
 

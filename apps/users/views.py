@@ -27,6 +27,7 @@ from .serializers import (
     RegisterSerializer,
     ResetPasswordRequestSerializer,
     ResetPasswordSerializer,
+    UserSerializer,
 )
 
 if TYPE_CHECKING:
@@ -236,3 +237,26 @@ class LogoutView(APIView):
             {"success": _("Logged out successfully.")},
             status=status.HTTP_200_OK,
         )
+
+
+class MyProfileView(APIView):
+
+    """User view."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self: Self, request: Request) -> Response:
+        """Handle HTTP GET request."""
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
+
+    def patch(self: Self, request: Request) -> Response:
+        """Handle HTTP PATCH request."""
+        serializer = UserSerializer(
+            request.user,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

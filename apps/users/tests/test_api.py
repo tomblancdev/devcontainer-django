@@ -15,7 +15,7 @@ from users.models import AuthToken
 from .test_setup import FakeUserInfos, UsingUser
 
 
-class APISetupTestCase(TestCase):
+class APIViewSetupTestCase(TestCase):
 
     """Set up test case for API tests."""
 
@@ -62,7 +62,7 @@ class APISetupTestCase(TestCase):
         self.assertEqual(response.status_code, 405)
 
 
-class TestRegisterView(APISetupTestCase):
+class TestRegisterView(APIViewSetupTestCase):
 
     """Test register view."""
 
@@ -218,7 +218,7 @@ class TestRegisterView(APISetupTestCase):
         )
 
 
-class TestLoginView(APISetupTestCase):
+class TestLoginView(APIViewSetupTestCase):
 
     """Test login view."""
 
@@ -287,7 +287,7 @@ class TestLoginView(APISetupTestCase):
             self.assertEqual(json_response["detail"], "Invalid email or password.")
 
 
-class TestChangePasswordView(APISetupTestCase):
+class TestChangePasswordView(APIViewSetupTestCase):
 
     """Test change password view."""
 
@@ -410,7 +410,7 @@ class TestChangePasswordView(APISetupTestCase):
         self.assertEqual(response.status_code, 401)
 
 
-class TestActivateAccountView(APISetupTestCase):
+class TestActivateAccountView(APIViewSetupTestCase):
 
     """Test activate account view."""
 
@@ -478,7 +478,7 @@ class TestActivateAccountView(APISetupTestCase):
             self.assertEqual(json_response["error"], "Token is already validated.")
 
 
-class TestRequestResetPasswordView(APISetupTestCase):
+class TestRequestResetPasswordView(APIViewSetupTestCase):
 
     """Test request reset password view."""
 
@@ -541,7 +541,7 @@ class TestRequestResetPasswordView(APISetupTestCase):
             self.assertEqual(json_response["email"][0], "Email not verified.")
 
 
-class TestResetPasswordView(APISetupTestCase):
+class TestResetPasswordView(APIViewSetupTestCase):
 
     """Test reset password view."""
 
@@ -673,7 +673,7 @@ class TestResetPasswordView(APISetupTestCase):
             )
 
 
-class TestLogoutView(APISetupTestCase):
+class TestLogoutView(APIViewSetupTestCase):
 
     """Test logout view."""
 
@@ -718,3 +718,129 @@ class TestLogoutView(APISetupTestCase):
         )
         # assert that token is deleted
         self.assertEqual(self.user.auth_token_set.count(), 0)
+
+
+class TestMyProfileView(APIViewSetupTestCase):
+
+    """Test my profile view."""
+
+    endpoint = reverse("my_profile")
+
+    def setUp(self: Self) -> None:
+        """Set up test."""
+        super().setUp()
+        self.user = UsingUser(with_auth_token=True).setUp()
+        self.auth_token = self.user.auth_token_set.first()
+        if not self.auth_token:
+            msg = "No auth token found."
+            raise ValueError(msg)
+        self.client.defaults["HTTP_AUTHORIZATION"] = f"Token {self.auth_token.key}"
+
+    def test_get(self: Self) -> None:
+        """Test HTTP GET request."""
+        response = self.client.get(self.endpoint)
+        self.assertEqual(response.status_code, 200)
+        json_response = response.json()
+        self.assertEqual(json_response["email"], self.user.email)
+        self.assertEqual(json_response["username"], self.user.username)
+        self.assertEqual(json_response["first_name"], self.user.first_name)
+        self.assertEqual(json_response["last_name"], self.user.last_name)
+        self.assertEqual(
+            json_response["date_joined"],
+            self.user.date_joined.isoformat().replace("+00:00", "Z"),
+        )
+
+    def test_get_for_unauthenticated_user(self: Self) -> None:
+        """Test HTTP GET request for unauthenticated user."""
+        self.client.defaults["HTTP_AUTHORIZATION"] = ""
+        response = self.client.get(self.endpoint)
+        self.assertEqual(response.status_code, 401)
+
+    def test_put(self: Self) -> None:
+        """Test HTTP POST request."""
+        response = self.client.put(self.endpoint, format="json")
+        self.assertEqual(response.status_code, 405)
+
+    def test_put_for_unauthenticated_user(self: Self) -> None:
+        """Test HTTP PUT request for unauthenticated user."""
+        self.client.defaults["HTTP_AUTHORIZATION"] = ""
+        new_infos = FakeUserInfos()
+        data = {
+            "username": new_infos.username,
+            "first_name": new_infos.first_name,
+            "last_name": new_infos.last_name,
+        }
+        response = self.client.put(self.endpoint, data=data, format="json")
+        self.assertEqual(response.status_code, 401)
+
+    def test_post(self: Self) -> None:
+        """Test HTTP POST request."""
+        response = self.client.post(self.endpoint, format="json")
+        self.assertEqual(response.status_code, 405)
+
+    def test_post_for_unauthenticated_user(self: Self) -> None:
+        """Test HTTP POST request for unauthenticated user."""
+        self.client.defaults["HTTP_AUTHORIZATION"] = ""
+        response = self.client.post(self.endpoint, format="json")
+        self.assertEqual(response.status_code, 401)
+
+    def test_patch(self: Self) -> None:
+        """Test HTTP PATCH request."""
+        new_infos = FakeUserInfos()
+        data = {
+            "username": new_infos.username,
+            "first_name": new_infos.first_name,
+            "last_name": new_infos.last_name,
+        }
+        for key, value in data.items():
+            response = self.client.patch(
+                self.endpoint,
+                data={key: value},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200)
+            json_response = response.json()
+            self.assertEqual(json_response[key], value)
+            self.user.refresh_from_db()
+            self.assertEqual(getattr(self.user, key), value)
+        self.user.refresh_from_db()
+        self.assertEqual(new_infos.username, self.user.username)
+        self.assertEqual(new_infos.first_name, self.user.first_name)
+        self.assertEqual(new_infos.last_name, self.user.last_name)
+
+    def test_patch_with_empty_strings(self: Self) -> None:
+        """Test HTTP PATCH request with empty strings."""
+        new_infos = FakeUserInfos()
+        data = {
+            "username": new_infos.username,
+            "first_name": new_infos.first_name,
+            "last_name": new_infos.last_name,
+        }
+        for key in data:
+            data_copy = data.copy()
+            data_copy[key] = ""
+            response = self.client.patch(
+                self.endpoint,
+                data=data_copy,
+                format="json",
+            )
+            self.assertEqual(response.status_code, 400)
+            json_response = response.json()
+            self.assertEqual(json_response[key][0], "This field may not be blank.")
+
+    def test_patch_for_unauthenticated_user(self: Self) -> None:
+        """Test HTTP PATCH request for unauthenticated user."""
+        self.client.defaults["HTTP_AUTHORIZATION"] = ""
+        response = self.client.patch(self.endpoint, format="json")
+        self.assertEqual(response.status_code, 401)
+
+    def test_delete(self: Self) -> None:
+        """Test HTTP DELETE request."""
+        response = self.client.delete(self.endpoint, format="json")
+        self.assertEqual(response.status_code, 405)
+
+    def test_delete_for_unauthenticated_user(self: Self) -> None:
+        """Test HTTP DELETE request for unauthenticated user."""
+        self.client.defaults["HTTP_AUTHORIZATION"] = ""
+        response = self.client.delete(self.endpoint, format="json")
+        self.assertEqual(response.status_code, 401)
