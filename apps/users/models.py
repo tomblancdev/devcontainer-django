@@ -13,6 +13,7 @@ from django.contrib.auth.models import (
     BaseUserManager,
     PermissionsMixin,
 )
+from django.contrib.contenttypes.models import ContentType
 from django.core.mail import send_mail
 from django.db import models
 from django.utils import timezone
@@ -25,6 +26,33 @@ from .settings import (
     EMAIL_TOKEN_VALIDATION_EXPIRATION_TIME,
     RESET_PASSWORD_TOKEN_EXPIRATION_TIME,
 )
+
+
+class UserRelatedModel(models.Model):
+
+    """Base Model for all models related to a user.
+
+    This model adds a foreign key to the user model.
+    It handles the anonymization of the user when the user is anonymized.
+    """
+
+    user: models.ForeignKey[User] | models.OneToOneField[User] = models.ForeignKey(
+        verbose_name=_("user"),
+        to=settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+    )
+
+    objects: ClassVar[models.Manager[UserRelatedModel]] = models.Manager()
+
+    class Meta(TypedModelMeta):
+
+        """Meta options."""
+
+        abstract = True
+
+    def anonymize(self: Self) -> None:
+        """Anonymize the model in case of anonymization of the user."""
+        self.delete()
 
 
 class SendUserEmailOptions(TypedDict, total=False):
@@ -217,6 +245,10 @@ class User(AbstractBaseUser, PermissionsMixin):
             **kwargs,
         )
 
+    def create_recovery_token(self: Self) -> UserRecoveryToken:
+        """Create a recovery token."""
+        return UserRecoveryToken.objects.create_token_for_user(self)
+
     def anonymize(self: Self) -> None:
         """Anonymize the user."""
         self.username = ""
@@ -224,14 +256,23 @@ class User(AbstractBaseUser, PermissionsMixin):
         self.first_name = ""
         self.last_name = ""
         self.set_password(None)
-        # delete tokens
-        self.delete_email_validation_token()
-        self.delete_reset_password_tokens()
-        self.delete_auth_tokens()
-        # create recovery token
-        UserRecoveryToken.objects.create(user=self)
+
+        UserRecoveryToken.objects.create_token_for_user(self)
 
         self.save()
+
+    def anonymize_related_models(self: Self) -> None:
+        """Anonymize related models."""
+        model_classes = ContentType.objects.all()
+        for model_class in model_classes:
+            model = model_class.model_class()
+            if model is None:
+                continue
+            if not issubclass(model, UserRelatedModel):
+                continue
+            instances = model.objects.filter(user=self)
+            for instance in instances:
+                instance.anonymize()
 
     def delete_email_validation_token(self: Self) -> None:
         """Delete the email validation token."""
@@ -298,7 +339,7 @@ class UserEmailValidationTokenManager(models.Manager["UserEmailValidationToken"]
         token_email_validation.regenerate_token()
 
 
-class UserEmailValidationToken(models.Model):
+class UserEmailValidationToken(UserRelatedModel):
 
     """User token email validation model."""
 
@@ -414,7 +455,7 @@ class UserResetPasswordTokenManager(models.Manager["UserResetPasswordToken"]):
         return reset_password_token
 
 
-class UserResetPasswordToken(models.Model):
+class UserResetPasswordToken(UserRelatedModel):
 
     """Reset password token model."""
 
@@ -509,7 +550,7 @@ class UserRecoveryTokenManager(models.Manager["UserRecoveryToken"]):
         return self.create(user=user)
 
 
-class UserRecoveryToken(models.Model):
+class UserRecoveryToken(UserRelatedModel):
 
     """User recovery token model."""
 
@@ -532,14 +573,17 @@ class UserRecoveryToken(models.Model):
         auto_now_add=True,
     )
 
-    objects: UserRecoveryTokenManager = UserRecoveryTokenManager()
+    objects: ClassVar[UserRecoveryTokenManager] = UserRecoveryTokenManager()
 
     def __str__(self: Self) -> str:
         """Return string representation."""
         return f"#{self.user.id}_{self.token}_recovery_token"
 
+    def anonymize(self: Self) -> None:
+        """Do nothing on anonymization."""
 
-class AuthToken(models.Model):
+
+class AuthToken(UserRelatedModel):
 
     """Authentification token model."""
 

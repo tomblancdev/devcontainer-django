@@ -836,8 +836,18 @@ class TestMyProfileView(APIViewSetupTestCase):
 
     def test_delete(self: Self) -> None:
         """Test HTTP DELETE request."""
-        response = self.client.delete(self.endpoint, format="json")
-        self.assertEqual(response.status_code, 405)
+        new_password = uuid4().hex
+        self.user.set_password(new_password)
+        self.user.save()
+        data = {"password": new_password}
+        response = self.client.delete(self.endpoint, data=data, format="json")
+        self.assertEqual(response.status_code, 200)
+        json_response = response.json()
+        self.assertEqual(json_response["success"], "Account deleted successfully.")
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.email_verified)
+        # asssert that user recovery token is created
+        self.assertIsNotNone(self.user.recovery_token)
 
     def test_delete_for_unauthenticated_user(self: Self) -> None:
         """Test HTTP DELETE request for unauthenticated user."""

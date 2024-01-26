@@ -260,3 +260,35 @@ class MyProfileView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    def delete(self: Self, request: Request) -> Response:
+        """Handle HTTP DELETE request."""
+        data = request.data
+        password = data.get("password")
+        if not request.user.check_password(password):
+            raise ValidationError(
+                {"password": [_("Invalid password.")]},
+            )
+        if isinstance(request.user, User):
+            recovery_token = request.user.create_recovery_token()
+            request.user.email_user(
+                subject=f"{_('Account deleted')}",
+                message=_(
+                    """
+                    Your account has been deleted.
+
+                    You can recover it with this unqiue key: {key}.
+                    """
+                ).format(
+                    key=recovery_token.token,
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+            )
+            request.user.anonymize()
+
+        else:
+            request.user.delete()
+        return Response(
+            {"success": _("Account deleted successfully.")},
+            status=status.HTTP_200_OK,
+        )
