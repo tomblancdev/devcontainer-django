@@ -17,6 +17,8 @@
 	// "forwardPorts": [],
 	// 👇 Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "/bin/sh /workspace/.devcontainer/scripts/post-create.sh",
+	// 👇 Use 'postStartCommand' to run commands after the container is started.
+	"postStartCommand": "/bin/sh /workspace/.devcontainer/scripts/post-start.sh",
 	// 👇 Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
