@@ -145,6 +145,25 @@ class UserManager(BaseUserManager["User"]):
         for user in self.all():
             user.anonymize()
 
+    def recover_user(  # noqa: PLR0913
+        self: Self,
+        recovery_token: str,
+        email: str,
+        username: str,
+        first_name: str,
+        last_name: str,
+        password: str,
+    ) -> User:
+        """Recover a user."""
+        user = UserRecoveryToken.objects.use_token(recovery_token).user
+        user.email = email
+        user.username = username
+        user.first_name = first_name
+        user.last_name = last_name
+        user.set_password(password)
+        user.save()
+        return user
+
 
 class User(AbstractBaseUser, PermissionsMixin):
 
@@ -548,6 +567,14 @@ class UserRecoveryTokenManager(models.Manager["UserRecoveryToken"]):
 
         # create token
         return self.create(user=user)
+
+    def use_token(self: Self, token: str) -> UserRecoveryToken:
+        """Use the token."""
+        # check if token exists
+        recovery_token = self.filter(token=token).first()
+        if not recovery_token:
+            raise InvalidToken
+        return recovery_token
 
 
 class UserRecoveryToken(UserRelatedModel):

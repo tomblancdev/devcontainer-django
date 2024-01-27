@@ -854,3 +854,79 @@ class TestMyProfileView(APIViewSetupTestCase):
         self.client.defaults["HTTP_AUTHORIZATION"] = ""
         response = self.client.delete(self.endpoint, format="json")
         self.assertEqual(response.status_code, 401)
+
+
+class TestRecoverAccountView(APIViewSetupTestCase):
+
+    """Test recover account view."""
+
+    endpoint = reverse("recover_account")
+
+    def test_post(self: Self) -> None:
+        """Test HTTP POST request."""
+        with UsingUser(with_recovery_token=True) as user:
+            user_infos = FakeUserInfos()
+            data = {
+                "recovery_token": user.recovery_token.token,
+                "email": user_infos.email,
+                "username": user_infos.username,
+                "first_name": user_infos.first_name,
+                "last_name": user_infos.last_name,
+                "password": user_infos.password,
+                "password_validation": user_infos.password,
+                "next": "http://localhost:8000",
+            }
+            response = self.client.post(self.endpoint, data=data, format="json")
+            self.assertEqual(response.status_code, 200)
+            json_response = response.json()
+            self.assertEqual(
+                json_response["success"],
+                "Account recovered successfully.",
+            )
+            self.assertEqual(user.auth_token_set.count(), 0)
+            self.assertEqual(user.reset_password_token_set.count(), 0)
+            self.assertIsNotNone(user.token_email_validation)
+            self.assertFalse(user.email_verified)
+
+    def test_post_with_missing_data(self: Self) -> None:
+        """Test HTTP POST request with missing data."""
+        with UsingUser(with_recovery_token=True) as user:
+            user_infos = FakeUserInfos()
+            data = {
+                "recovery_token": user.recovery_token.token,
+                "email": user_infos.email,
+                "username": user_infos.username,
+                "first_name": user_infos.first_name,
+                "last_name": user_infos.last_name,
+                "password": user_infos.password,
+                "password_validation": user_infos.password,
+            }
+            for key in data:
+                data_copy = data.copy()
+                del data_copy[key]
+                response = self.client.post(
+                    self.endpoint,
+                    data=data_copy,
+                    format="json",
+                )
+                self.assertEqual(response.status_code, 400)
+                json_response = response.json()
+                self.assertEqual(json_response[key][0], "This field is required.")
+
+    def test_post_with_invalid_token(self: Self) -> None:
+        """Test HTTP POST request with invalid token."""
+        user_infos = FakeUserInfos()
+        data = {
+            "recovery_token": "invalid_token",
+            "email": user_infos.email,
+            "username": user_infos.username,
+            "first_name": user_infos.first_name,
+            "last_name": user_infos.last_name,
+            "password": user_infos.password,
+            "password_validation": user_infos.password,
+            "next": "http://localhost:8000",
+        }
+        response = self.client.post(self.endpoint, data=data, format="json")
+        self.assertEqual(response.status_code, 401)
+        json_response = response.json()
+        self.assertEqual(json_response["detail"], "Invalid token.")

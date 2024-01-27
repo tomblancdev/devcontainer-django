@@ -5,11 +5,12 @@ from __future__ import annotations
 from .exceptions import (
     EmailNotVerified,
     InvalidEmailOrPassword,
+    InvalidToken,
     UserAlreadyExists,
     UserDoesNotExist,
     UserIsNotActive,
 )
-from .models import User
+from .models import User, UserRecoveryToken
 
 
 def validate_user_does_not_exist(
@@ -64,3 +65,11 @@ def validate_mail_login(
         raise InvalidEmailOrPassword from None
     except UserDoesNotExist:
         raise InvalidEmailOrPassword from None
+
+
+def validate_recovery_token_exists(
+    token: str,
+) -> None:
+    """Validate recovery token exists."""
+    if not UserRecoveryToken.objects.filter(token=token).exists():
+        raise InvalidToken

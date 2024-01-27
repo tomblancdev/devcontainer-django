@@ -24,6 +24,7 @@ from .serializers import (
     ActivateAccountSerializer,
     AuthTokenSerializer,
     PasswordChangeSerializer,
+    RecoveryAccountSerializer,
     RegisterSerializer,
     ResetPasswordRequestSerializer,
     ResetPasswordSerializer,
@@ -290,5 +291,23 @@ class MyProfileView(APIView):
             request.user.delete()
         return Response(
             {"success": _("Account deleted successfully.")},
+            status=status.HTTP_200_OK,
+        )
+
+
+class RecoverAccountView(APIView):
+
+    """Recover account view."""
+
+    permission_classes = (AllowAny,)
+
+    def post(self: Self, request: Request) -> Response:
+        """Handle HTTP POST request."""
+        serializer = RecoveryAccountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        send_mail_activation(user, request.data.get("next"))
+        return Response(
+            {"success": _("Account recovered successfully.")},
             status=status.HTTP_200_OK,
         )

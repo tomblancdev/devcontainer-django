@@ -16,6 +16,7 @@ from .models import AuthToken, User
 from .validators import (
     validate_email_is_verified,
     validate_mail_login,
+    validate_recovery_token_exists,
     validate_user_does_not_exist,
 )
 
@@ -82,6 +83,41 @@ class RegisterSerializer(serializers.ModelSerializer[User]):
         return User.objects.create_user(
             email=validated_data["email"],
             password=validated_data["password"],
+            first_name=validated_data["first_name"],
+            last_name=validated_data["last_name"],
+            username=validated_data["username"],
+        )
+
+
+class RecoveryAccountSerializer(RegisterSerializer):
+
+    """Serializer for recovery account."""
+
+    recovery_token = serializers.CharField(
+        write_only=True,
+        validators=[validate_recovery_token_exists],
+    )
+
+    class Meta:
+
+        """Meta class for recovery account serializer."""
+
+        model = User
+        fields = (*RegisterSerializer.Meta.fields, "recovery_token")
+        extra_kwargs: ClassVar[dict[str, dict[str, bool]]] = {
+            **RegisterSerializer.Meta.extra_kwargs,
+            "recovery_token": {"write_only": True},
+        }
+
+    def create(
+        self: Self,
+        validated_data: Any,  # noqa: ANN401
+    ) -> User:
+        """Recover User Account."""
+        return User.objects.recover_user(
+            recovery_token=validated_data["recovery_token"],
+            password=validated_data["password"],
+            email=validated_data["email"],
             first_name=validated_data["first_name"],
             last_name=validated_data["last_name"],
             username=validated_data["username"],
