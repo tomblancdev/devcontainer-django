@@ -13,7 +13,7 @@ echo -e "${CYAN}Creating Superuser${NC}"
 poetry run python manage.py createsuperuser --noinput
 
 echo -e "${CYAN}Copying Nginx Configuration${NC}"
-cp /workspace/.devcontainer/nginx/nginx.conf /etc/nginx/nginx.conf
+cp /workspace/.devcontainer/nginx.conf /etc/nginx/nginx.conf
 
 echo -e "${CYAN}Starting Nginx${NC}"
 service nginx stop

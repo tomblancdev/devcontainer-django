@@ -40,8 +40,14 @@ services:
       # ___ Static files ___
       STATIC_URL: /static/
       STATIC_ROOT: /staticfiles/
+      # ___ Media files ___
+      MEDIA_URL: /media/
+      MEDIA_ROOT: /mediafiles/
       # ___ Globalization ___
       LANGUAGE_CODE: en-us
       TIME_ZONE: UTC
+
+    ports: # expose ports
+      - "8000:80" # expose port 80 of the container to port 8000 of the host machine
 
     command: /bin/sh -c "while sleep 1000; do :; done" # * keep the container running
